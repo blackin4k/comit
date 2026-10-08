@@ -8,6 +8,15 @@ from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
 from rich.text import Text
 
+if sys.platform == "win32":
+    try:
+        if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 console = Console()
 error_console = Console(stderr=True)
 

@@ -15,6 +15,7 @@ from comit.config import (
     get_model,
     get_provider,
     mask_api_key,
+    normalize_api_key,
     get_config_summary,
     DEFAULT_GROQ_MODEL,
     DEFAULT_PROVIDER,
@@ -107,6 +108,34 @@ def test_get_provider_default(temp_config_dir: Path, monkeypatch):
     assert get_provider() == "env_provider"
 
 
+def test_normalize_api_key():
+    assert normalize_api_key(None) is None
+    assert normalize_api_key("") is None
+    assert normalize_api_key("   ") is None
+    assert normalize_api_key("gsk_abc123") == "gsk_abc123"
+    assert normalize_api_key('"gsk_abc123"') == "gsk_abc123"
+    assert normalize_api_key("'gsk_abc123'") == "gsk_abc123"
+    assert normalize_api_key('  "gsk_abc123"  ') == "gsk_abc123"
+    assert normalize_api_key("  'gsk_abc123'  ") == "gsk_abc123"
+    assert normalize_api_key('  "  gsk_abc123  "  ') == "gsk_abc123"
+    assert normalize_api_key('gsk_"inner"_123') == 'gsk_"inner"_123'
+
+
+def test_mask_api_key_with_quotes():
+    assert mask_api_key('"gsk_1234567890abcdef"') == "gsk_************cdef"
+    assert mask_api_key("'gsk_1234567890abcdef'") == "gsk_************cdef"
+    assert mask_api_key('  "gsk_1234567890abcdef"  ') == "gsk_************cdef"
+
+
+def test_get_api_key_with_existing_incorrectly_quoted_config(temp_config_dir: Path, monkeypatch):
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("groq_api_key", raising=False)
+    monkeypatch.delenv("Groq_Api_Key", raising=False)
+    monkeypatch.delenv("GROQ_KEY", raising=False)
+
+    save_user_config({"groq_api_key": '"gsk_already_quoted_1234567890"'})
+    assert get_api_key() == "gsk_already_quoted_1234567890"
+
 def test_get_config_summary(temp_config_dir: Path, monkeypatch):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.delenv("groq_api_key", raising=False)
@@ -117,3 +146,5 @@ def test_get_config_summary(temp_config_dir: Path, monkeypatch):
     assert summary["model"] == "test-model"
     assert summary["api_key_masked"] == "gsk_************cdef"
     assert summary["config_exists"] is True
+
+

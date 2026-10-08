@@ -59,23 +59,45 @@ def reset_user_config() -> None:
         config_file.unlink()
 
 
+def normalize_api_key(key: Optional[str]) -> Optional[str]:
+    if not key:
+        return None
+    val = str(key).strip()
+    if not val:
+        return None
+    while (len(val) >= 2) and (
+        (val.startswith('"') and val.endswith('"')) or
+        (val.startswith("'") and val.endswith("'"))
+    ):
+        val = val[1:-1].strip()
+    return val if val else None
+
+
 def get_api_key(override_key: Optional[str] = None) -> Optional[str]:
-    if override_key and override_key.strip():
-        return override_key.strip()
+    if override_key:
+        normalized = normalize_api_key(override_key)
+        if normalized:
+            return normalized
 
     for var in ("GROQ_API_KEY", "groq_api_key", "Groq_Api_Key", "GROQ_KEY"):
         val = os.getenv(var)
-        if val and val.strip():
-            return val.strip()
+        if val:
+            normalized = normalize_api_key(val)
+            if normalized:
+                return normalized
 
     for k, v in os.environ.items():
-        if k.strip().lower() in ("groq_api_key", "groq_key") and v and v.strip():
-            return v.strip()
+        if k.strip().lower() in ("groq_api_key", "groq_key") and v:
+            normalized = normalize_api_key(v)
+            if normalized:
+                return normalized
 
     user_cfg = load_user_config()
     cfg_val = user_cfg.get("groq_api_key")
-    if cfg_val and str(cfg_val).strip():
-        return str(cfg_val).strip()
+    if cfg_val:
+        normalized = normalize_api_key(cfg_val)
+        if normalized:
+            return normalized
 
     return None
 
@@ -115,9 +137,9 @@ def get_provider(override_provider: Optional[str] = None) -> str:
 
 
 def mask_api_key(key: Optional[str]) -> str:
-    if not key or not key.strip():
+    clean = normalize_api_key(key)
+    if not clean:
         return "Not configured"
-    clean = key.strip()
     if len(clean) <= 8:
         return "*" * len(clean)
     return f"{clean[:4]}{'*' * 12}{clean[-4:]}"

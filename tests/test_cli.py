@@ -146,3 +146,51 @@ def test_cli_settings_interactive_q_exit(tmp_path, monkeypatch):
     result = runner.invoke(app, ["settings"], input="q\n")
     assert result.exit_code == 0
     assert "Settings Menu" in result.stdout
+
+
+def test_cli_settings_set_key_double_quoted(tmp_path, monkeypatch):
+    monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
+    result = runner.invoke(app, ["settings", "set-key", "--key", '"gsk_quoted_1234567890"'])
+    assert result.exit_code == 0
+    assert "Groq API key saved" in result.stdout
+
+    from comit.config import get_api_key, load_user_config
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("groq_api_key", raising=False)
+    monkeypatch.delenv("Groq_Api_Key", raising=False)
+    monkeypatch.delenv("GROQ_KEY", raising=False)
+    assert load_user_config()["groq_api_key"] == "gsk_quoted_1234567890"
+    assert get_api_key() == "gsk_quoted_1234567890"
+
+
+def test_cli_settings_set_key_single_quoted(tmp_path, monkeypatch):
+    monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
+    result = runner.invoke(app, ["settings", "set-key", "--key", "  'gsk_single_1234567890'  "])
+    assert result.exit_code == 0
+    assert "Groq API key saved" in result.stdout
+
+    from comit.config import get_api_key, load_user_config
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("groq_api_key", raising=False)
+    monkeypatch.delenv("Groq_Api_Key", raising=False)
+    monkeypatch.delenv("GROQ_KEY", raising=False)
+    assert load_user_config()["groq_api_key"] == "gsk_single_1234567890"
+    assert get_api_key() == "gsk_single_1234567890"
+
+
+@patch("comit.cli.prompt_settings_menu", side_effect=["set_key", "exit"])
+@patch("comit.cli.prompt_api_key", return_value='  "gsk_interactive_1234567890"  ')
+def test_cli_settings_interactive_set_key_normalization(mock_prompt_key, mock_prompt_menu, tmp_path, monkeypatch):
+    monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
+    result = runner.invoke(app, ["settings"])
+    assert result.exit_code == 0
+    assert "Groq API key saved" in result.stdout
+
+    from comit.config import get_api_key, load_user_config
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("groq_api_key", raising=False)
+    monkeypatch.delenv("Groq_Api_Key", raising=False)
+    monkeypatch.delenv("GROQ_KEY", raising=False)
+    assert load_user_config()["groq_api_key"] == "gsk_interactive_1234567890"
+    assert get_api_key() == "gsk_interactive_1234567890"
+

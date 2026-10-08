@@ -15,6 +15,7 @@ from comit.config import (
     get_model,
     set_user_config_value,
     reset_user_config,
+    normalize_api_key,
 )
 from comit.git import (
     GitError,
@@ -189,8 +190,9 @@ def _run_interactive_settings() -> None:
             show_settings_summary(get_config_summary())
         elif choice == "set_key":
             key = prompt_api_key()
-            if key:
-                set_user_config_value("groq_api_key", key)
+            norm_key = normalize_api_key(key)
+            if norm_key:
+                set_user_config_value("groq_api_key", norm_key)
                 show_step_success("Groq API key saved.")
             else:
                 show_error("API key cannot be empty.")
@@ -236,10 +238,11 @@ def settings_set_key(
 ):
     if not key:
         key = prompt_api_key()
-    if not key or not key.strip():
+    norm_key = normalize_api_key(key)
+    if not norm_key:
         show_error("API key cannot be empty.")
         raise typer.Exit(code=1)
-    set_user_config_value("groq_api_key", key.strip())
+    set_user_config_value("groq_api_key", norm_key)
     show_step_success("Groq API key saved.")
 
 
