@@ -44,50 +44,84 @@ def display_suggested_commit(message: str, title: str = "Suggested commit") -> N
     console.print()
 
 
-def _read_key_event() -> str:
-    if sys.platform == "win32":
-        import msvcrt
-        ch = msvcrt.getwch()
-        if ch in ("\x00", "\xe0"):
-            ch2 = msvcrt.getwch()
-            if ch2 == "H":
-                return "up"
-            elif ch2 == "P":
-                return "down"
-            elif ch2 == "K":
-                return "left"
-            elif ch2 == "M":
-                return "right"
-            return "special"
-        elif ch in ("\r", "\n"):
-            return "enter"
-        elif ch == "\x03":
-            raise KeyboardInterrupt
-        return ch
-    else:
-        import termios
-        import tty
-        fd = sys.stdin.fileno()
-        old_settings = termios.tcgetattr(fd)
-        try:
-            tty.setraw(fd)
-            ch = sys.stdin.read(1)
-            if ch == "\x1b":
-                ch2 = sys.stdin.read(1)
-                if ch2 == "[":
-                    ch3 = sys.stdin.read(1)
-                    if ch3 == "A":
-                        return "up"
-                    elif ch3 == "B":
-                        return "down"
-                return "escape"
-            elif ch in ("\r", "\n"):
-                return "enter"
-            elif ch == "\x03":
-                raise KeyboardInterrupt
-            return ch
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+def _run_prompt_toolkit_menu(
+    options: List[Tuple[str, str]],
+    prompt_text: str = "What would you like to do?",
+    default_index: int = 0,
+    allow_quit_key: bool = True,
+) -> Optional[str]:
+    from prompt_toolkit.application import Application
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.layout import Layout, HSplit, Window
+    from prompt_toolkit.layout.controls import FormattedTextControl
+    from prompt_toolkit.styles import Style
+
+    kb = KeyBindings()
+    selected = [default_index]
+    num_options = len(options)
+
+    @kb.add("up")
+    @kb.add("k")
+    def _(event):
+        selected[0] = (selected[0] - 1) % num_options
+
+    @kb.add("down")
+    @kb.add("j")
+    def _(event):
+        selected[0] = (selected[0] + 1) % num_options
+
+    @kb.add("enter")
+    def _(event):
+        event.app.exit(result=options[selected[0]][0])
+
+    if allow_quit_key:
+        @kb.add("q")
+        @kb.add("Q")
+        def _(event):
+            res = "cancel" if "cancel" in [o[0] for o in options] else "exit"
+            event.app.exit(result=res)
+
+    for opt_id, _ in options:
+        first_char = opt_id[0].lower()
+        @kb.add(first_char)
+        def _(event, val=opt_id):
+            event.app.exit(result=val)
+
+    for idx, (opt_id, _) in enumerate(options, start=1):
+        @kb.add(str(idx))
+        def _(event, val=opt_id):
+            event.app.exit(result=val)
+
+    @kb.add("c-c")
+    def _(event):
+        res = "cancel" if "cancel" in [o[0] for o in options] else "exit"
+        event.app.exit(result=res)
+
+    def get_formatted_text():
+        tokens = [("bold", f"{prompt_text}\n\n")]
+        for i, (_, label) in enumerate(options):
+            if i == selected[0]:
+                tokens.append(("ansicyan bold", f"  ❯ {label}\n"))
+            else:
+                tokens.append(("", f"    {label}\n"))
+        return tokens
+
+    style = Style.from_dict({
+        "prompt": "bold",
+        "cursor": "ansicyan bold",
+        "selected": "ansicyan bold",
+        "unselected": "",
+    })
+
+    app = Application(
+        layout=Layout(HSplit([Window(content=FormattedTextControl(get_formatted_text))])),
+        key_bindings=kb,
+        style=style,
+        full_screen=False,
+        erase_when_done=True,
+    )
+
+    return app.run()
 
 
 def select_arrow_menu(
@@ -96,67 +130,42 @@ def select_arrow_menu(
     default_index: int = 0,
     allow_quit_key: bool = True,
 ) -> str:
-    if not sys.stdin.isatty():
-        console.print(f"[bold]{prompt_text}[/bold]\n")
-        for idx, (opt_id, opt_label) in enumerate(options, start=1):
-            console.print(f"  [bold cyan]{opt_id}[/bold cyan] - {opt_label}")
-        choices = [opt_id for opt_id, _ in options]
-        if allow_quit_key:
-            choices.extend(["q", "quit"])
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        try:
+            result = _run_prompt_toolkit_menu(
+                options=options,
+                prompt_text=prompt_text,
+                default_index=default_index,
+                allow_quit_key=allow_quit_key,
+            )
+            if result:
+                label = dict(options).get(result, result.title())
+                console.print(f"[dim]Selected: {label}[/dim]\n")
+                return result
+        except Exception:
+            pass
+
+    console.print(f"[bold]{prompt_text}[/bold]\n")
+    for idx, (opt_id, opt_label) in enumerate(options, start=1):
+        console.print(f"  [bold cyan]{opt_id}[/bold cyan] - {opt_label}")
+    choices = [opt_id for opt_id, _ in options]
+    if allow_quit_key:
+        choices.extend(["q", "quit"])
+    try:
         choice = Prompt.ask(
             "\n[bold]Select an option[/bold]",
             default=options[default_index][0],
             console=console,
         ).strip().lower()
-        if allow_quit_key and choice in ("q", "quit"):
-            return "cancel" if "cancel" in [o[0] for o in options] else "exit"
-        for opt_id, opt_label in options:
-            if choice in (opt_id.lower(), opt_label.lower(), str(options.index((opt_id, opt_label)) + 1)):
-                return opt_id
+    except Exception:
         return options[default_index][0]
 
-    selected = default_index
-    num_options = len(options)
-
-    console.print(f"[bold]{prompt_text}[/bold]\n")
-
-    def render_lines():
-        for i, (_, label) in enumerate(options):
-            if i == selected:
-                console.print(f"  [bold cyan]❯ {label}[/bold cyan]")
-            else:
-                console.print(f"    {label}")
-
-    render_lines()
-
-    while True:
-        try:
-            key = _read_key_event()
-        except KeyboardInterrupt:
-            console.print()
-            return "cancel" if "cancel" in [o[0] for o in options] else "exit"
-
-        if key == "up":
-            selected = (selected - 1) % num_options
-        elif key == "down":
-            selected = (selected + 1) % num_options
-        elif key == "enter":
-            console.print(f"\n[dim]Selected: {options[selected][1]}[/dim]\n")
-            return options[selected][0]
-        elif allow_quit_key and key.lower() == "q":
-            console.print("\n[dim]Selected: Exit[/dim]\n")
-            return "cancel" if "cancel" in [o[0] for o in options] else "exit"
-        else:
-            for i, (opt_id, opt_label) in enumerate(options):
-                if key.lower() in (opt_id.lower()[:1], str(i + 1)):
-                    selected = i
-                    console.print(f"\x1b[{num_options}A\r", end="")
-                    render_lines()
-                    console.print(f"\n[dim]Selected: {opt_label}[/dim]\n")
-                    return opt_id
-
-        console.print(f"\x1b[{num_options}A\r", end="")
-        render_lines()
+    if allow_quit_key and choice in ("q", "quit"):
+        return "cancel" if "cancel" in [o[0] for o in options] else "exit"
+    for idx, (opt_id, opt_label) in enumerate(options, start=1):
+        if choice in (opt_id.lower(), opt_label.lower(), str(idx), opt_id[:1].lower()):
+            return opt_id
+    return options[default_index][0]
 
 
 def prompt_action() -> str:
@@ -171,7 +180,7 @@ def prompt_action() -> str:
 
 def prompt_edit(current_message: str) -> str:
     console.print("\n[bold cyan]Edit commit message[/bold cyan] (use arrow keys to navigate, press Enter when done):")
-    if sys.stdin.isatty():
+    if sys.stdin.isatty() and sys.stdout.isatty():
         try:
             from prompt_toolkit import prompt as pt_prompt
             edited = pt_prompt("> ", default=current_message)
@@ -183,8 +192,7 @@ def prompt_edit(current_message: str) -> str:
         edited = Prompt.ask("[bold]> [/bold]", default=current_message, console=console).strip()
         return edited if edited else current_message
     except Exception:
-        line = sys.stdin.readline().strip()
-        return line if line else current_message
+        return current_message
 
 
 def show_commit_success(message: str) -> None:
@@ -235,7 +243,7 @@ def prompt_api_key() -> str:
 
 
 def prompt_model(current_model: str) -> str:
-    if sys.stdin.isatty():
+    if sys.stdin.isatty() and sys.stdout.isatty():
         try:
             from prompt_toolkit import prompt as pt_prompt
             model = pt_prompt("Enter Groq Model: ", default=current_model).strip()
