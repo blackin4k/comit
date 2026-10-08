@@ -57,10 +57,10 @@ For editable local development:
 pip install -e .
 ```
 
-To install development dependencies for testing:
+To install development and testing dependencies:
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[test]"
 ```
 
 ### Windows PATH Note
@@ -193,20 +193,20 @@ Suggested commit:
 
 What would you like to do?
 
-  [a] Accept
-  [e] Edit
-  [r] Regenerate
-  [c] Cancel
-
-Select an option [a]:
+  ❯ Accept
+    Edit
+    Regenerate
+    Cancel
 ```
+
+Navigate with **Up/Down arrow keys** or **k/j**, and press **Enter** to select.
 
 ### Actions
 
-- **`[a]` Accept** — Creates the commit using the generated message.
-- **`[e]` Edit** — Prompts you to modify the message in the terminal before committing.
-- **`[r]` Regenerate** — Queries the AI model for an alternative commit message.
-- **`[c]` Cancel** — Exits without creating a commit or touching your staged changes.
+- **Accept (`a` or `1`)** — Creates the commit using the generated message.
+- **Edit (`e` or `2`)** — Opens an interactive inline editor with the generated message pre-populated for modification.
+- **Regenerate (`r` or `3`)** — Requests an alternative commit message from Groq while avoiding previous attempts.
+- **Cancel (`c`, `q`, or `4`)** — Exits cleanly without creating a commit or modifying staged changes.
 
 ---
 
