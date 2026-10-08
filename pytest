@@ -1,0 +1,220 @@
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pyproject.toml', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/README.md b/README.md[m
+[1mindex c745bd9..d075c55 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -2,38 +2,26 @@[m
+ [m
+ > AI-powered Git commit messages that understand your project's commit style.[m
+ [m
+[31m-Comit is a lightweight developer CLI for Git. It analyzes your staged changes and recent commit history, learns your repository's commit conventions, and uses fast LLM inference through Groq to generate concise, accurate commit messages.[m
+[32m+[m[32mComit is a lightweight developer CLI for Git. It analyzes your staged changes and recent commit history, learns your repository's commit conventions, and generates concise, accurate commit messages using your choice of AI provider.[m
+ [m
+ ## Features[m
+ [m
+[32m+[m[32m- **Multi-Provider Support** — Use Groq, Google Gemini, OpenAI, or local models with Ollama.[m
+ - **Context-aware** — Analyzes your staged diff and recent commit history to match your repository's style.[m
+ - **Developer in control** — Review, edit, regenerate, or cancel a suggested commit message before committing.[m
+[32m+[m[32m- **Push Integration** — Optional safe remote pushing after creating a commit.[m
+ - **Fast-track mode** — Use `-y` to automatically commit the generated message without confirmation.[m
+[31m-- **Settings management** — Configure your API key and model interactively or via CLI commands without editing files.[m
+[32m+[m[32m- **Settings management** — Configure your provider, model, API keys, and endpoints interactively or via CLI commands.[m
+ - **Safe and non-destructive** — Only analyzes staged changes with `git diff --cached`. Comit never stages files or modifies unstaged changes.[m
+[31m-- **Lightweight** — Built with Python, Typer, Rich, and the Groq SDK.[m
+ [m
+[31m-## How It Works[m
+[32m+[m[32m## Supported Providers[m
+ [m
+[31m-```text[m
+[31m-Staged Git Diff[m
+[31m-      |[m
+[31m-      v[m
+[31m-Recent Commit History[m
+[31m-      |[m
+[31m-      v[m
+[31m-   Groq LLM[m
+[31m-      |[m
+[31m-      v[m
+[31m-Suggested Commit[m
+[31m-      |[m
+[31m-      v[m
+[31m-User Review[m
+[31m-[a] Accept  [e] Edit  [r] Regenerate  [c] Cancel[m
+[31m-      |[m
+[31m-      v[m
+[31m-   Git Commit[m
+[31m-```[m
+[32m+[m[32m| Provider | Default Model | Authentication | Setup / Env Variable |[m
+[32m+[m[32m| :--- | :--- | :--- | :--- |[m
+[32m+[m[32m| **Groq** *(Default)* | `qwen/qwen3.8-27b` | API Key | `GROQ_API_KEY` |[m
+[32m+[m[32m| **Google Gemini** | `gemini-2.5-flash` | API Key | `GEMINI_API_KEY` |[m
+[32m+[m[32m| **OpenAI** | `gpt-4o-mini` | API Key | `OPENAI_API_KEY` |[m
+[32m+[m[32m| **Ollama** | `llama3.2` | None (Local) | `OLLAMA_HOST` (default: `http://localhost:11434`) |[m
+ [m
+ ## Installation[m
+ [m
+[36m@@ -41,7 +29,6 @@[m [mUser Review[m
+ [m
+ - Python 3.11+[m
+ - Git[m
+[31m-- A Groq API key[m
+ [m
+ ### Install Comit[m
+ [m
+[36m@@ -57,10 +44,20 @@[m [mFor editable local development:[m
+ pip install -e .[m
+ ```[m
+ [m
+[31m-To install development and testing dependencies:[m
+[32m+[m[32mTo install with additional provider SDKs:[m
+ [m
+ ```bash[m
+[31m-pip install -e ".[test]"[m
+[32m+[m[32m# Google Gemini SDK[m
+[32m+[m[32mpip install -e ".[gemini]"[m
+[32m+[m
+[32m+[m[32m# OpenAI SDK[m
+[32m+[m[32mpip install -e ".[openai]"[m
+[32m+[m
+[32m+[m[32m# Ollama SDK[m
+[32m+[m[32mpip install -e ".[ollama]"[m
+[32m+[m
+[32m+[m[32m# All providers and testing tools[m
+[32m+[m[32mpip install -e ".[all,test]"[m
+ ```[m
+ [m
+ ### Windows PATH Note[m
+[36m@@ -81,23 +78,25 @@[m [mCommon Python Scripts locations on Windows:[m
+ git ai --version[m
+ ```[m
+ [m
+[31m-Output:[m
+[31m-```text[m
+[31m-Comit version 0.1.0[m
+[31m-```[m
+[31m-[m
+[31m-### 2. Configure Your API Key[m
+[32m+[m[32m### 2. Configure Your Provider & API Key[m
+ [m
+[31m-Run the interactive settings manager:[m
+[32m+[m[32mOpen the interactive settings menu:[m
+ [m
+ ```powershell[m
+ git ai settings[m
+ ```[m
+ [m
+[31m-Or set the key directly from the command line:[m
+[32m+[m[32mOr configure via CLI:[m
+ [m
+ ```powershell[m
+[32m+[m[32m# Select provider (groq, gemini, openai, ollama)[m
+[32m+[m[32mgit ai settings set-provider groq[m
+[32m+[m
+[32m+[m[32m# Set API key for the active provider[m
+ git ai settings set-key[m
+[32m+[m
+[32m+[m[32m# Or specify the provider directly[m
+[32m+[m[32mgit ai settings set-key --provider gemini[m
+ ```[m
+ [m
+ ### 3. Generate Commit Messages[m
+[36m@@ -126,12 +125,13 @@[m [mComit provides an interactive configuration interface as well as non-interactive[m
+ git ai settings[m
+ ```[m
+ [m
+[31m-Menu options:[m
+[32m+[m[32mOptions:[m
+ 1. View configuration[m
+[31m-2. Configure Groq API key[m
+[31m-3. Configure model[m
+[31m-4. Reset configuration[m
+[31m-5. Exit[m
+[32m+[m[32m2. Select AI provider[m
+[32m+[m[32m3. Configure API key / host[m
+[32m+[m[32m4. Configure model[m
+[32m+[m[32m5. Reset configuration[m
+[32m+[m[32m6. Exit[m
+ [m
+ ### Settings Commands[m
+ [m
+[36m@@ -140,14 +140,26 @@[m [mMenu options:[m
+   git ai settings show[m
+   ```[m
+ [m
+[31m-- **Set Groq API key (hidden prompt):**[m
+[32m+[m[32m- **Set AI provider:**[m
+[32m+[m[32m  ```powershell[m
+[32m+[m[32m  git ai settings set-provider gemini[m
+[32m+[m[32m  ```[m
+[32m+[m
+[32m+[m[32m- **Set API key (masked prompt):**[m
+   ```powershell[m
+   git ai settings set-key[m
+[32m+[m[32m  git ai settings set-key --provider openai[m
+   ```[m
+ [m
+[31m-- **Set Groq model:**[m
+[32m+[m[32m- **Set model:**[m
+   ```powershell[m
+   git ai settings set-model qwen/qwen3.8-27b[m
+[32m+[m[32m  git ai settings set-model gpt-4o --provider openai[m
+[32m+[m[32m  ```[m
+[32m+[m
+[32m+[m[32m- **Set Ollama host URL:**[m
+[32m+[m[32m  ```powershell[m
+[32m+[m[32m  git ai settings set-host http://localhost:11434[m
+   ```[m
+ [m
+ - **Reset user configuration:**[m
+[36m@@ -159,9 +171,12 @@[m [mMenu options:[m
+ [m
+ Comit resolves settings in the following order:[m
+ [m
+[31m-1. **Environment variables** (e.g. `GROQ_API_KEY`, `GROQ_MODEL`, or `.env` files in your workspace)[m
+[31m-2. **User configuration** (`config.json` stored in your OS user directory: `%APPDATA%\comit` on Windows or `~/.config/comit` on Linux/macOS)[m
+[31m-3. **Application defaults** (Model: `qwen/qwen3.8-27b`, Provider: `groq`)[m
+[32m+[m[32m1. **Environment variables**:[m
+[32m+[m[32m   - Provider: `COMIT_PROVIDER`[m
+[32m+[m[32m   - Model: `COMIT_MODEL`, `GROQ_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `OLLAMA_MODEL`[m
+[32m+[m[32m   - API Keys / Endpoints: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `OLLAMA_HOST`[m
+[32m+[m[32m2. **User configuration** (`config.json` stored in `%APPDATA%\comit` on Windows or `~/.config/comit` on Linux/macOS)[m
+[32m+[m[32m3. **Application defaults** (Provider: `groq`, Model: `qwen/qwen3.8-27b`)[m
+ [m
+ ---[m
+ [m
+[36m@@ -205,7 +220,7 @@[m [mNavigate with **Up/Down arrow keys** or **k/j**, and press **Enter** to select.[m
+ [m
+ - **Accept (`a` or `1`)** — Creates the commit using the generated message. After the local commit succeeds, you are asked whether to push to the remote (`[y/N]`, default No).[m
+ - **Edit (`e` or `2`)** — Opens an interactive inline editor with the generated message pre-populated for modification.[m
+[31m-- **Regenerate (`r` or `3`)** — Requests an alternative commit message from Groq while avoiding previous attempts.[m
+[32m+[m[32m- **Regenerate (`r` or `3`)** — Requests an alternative commit message from the AI provider while avoiding previous attempts.[m
+ - **Cancel (`c`, `q`, or `4`)** — Exits cleanly without creating a commit or modifying staged changes.[m
+ [m
+ ---[m
+[1mdiff --git a/pyproject.toml b/pyproject.toml[m
+[1mindex 52d6786..90258b1 100644[m
+[1m--- a/pyproject.toml[m
+[1m+++ b/pyproject.toml[m
+[36m@@ -41,6 +41,21 @@[m [mtest = [[m
+ tests = [[m
+     "pytest>=7.0.0",[m
+ ][m
+[32m+[m[32mgemini = [[m
+[32m+[m[32m    "google-genai>=0.1.0",[m
+[32m+[m[32m][m
+[32m+[m[32mopenai = [[m
+[32m+[m[32m    "openai>=1.0.0",[m
+[32m+[m[32m][m
+[32m+[m[32mollama = [[m
+[32m+[m[32m    "ollama>=0.3.0",[m
+[32m+[m[32m][m
+[32m+[m[32mall = [[m
+[32m+[m[32m    "groq>=0.9.0",[m
+[32m+[m[32m    "google-genai>=0.1.0",[m
+[32m+[m[32m    "openai>=1.0.0",[m
+[32m+[m[32m    "ollama>=0.3.0",[m
+[32m+[m[32m][m
+ [m
+ [project.scripts][m
+ comit = "comit.cli:app"[m

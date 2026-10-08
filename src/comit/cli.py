@@ -12,10 +12,13 @@ from comit.ai import (
 )
 from comit.config import (
     get_config_summary,
+    get_provider,
     get_model,
+    get_ollama_host,
     set_user_config_value,
     reset_user_config,
     normalize_api_key,
+    SUPPORTED_PROVIDERS,
 )
 from comit.git import (
     GitError,
@@ -42,8 +45,10 @@ from comit.ui import (
     show_error,
     show_settings_summary,
     prompt_settings_menu,
+    prompt_provider_selection,
     prompt_api_key,
     prompt_model,
+    prompt_ollama_host,
     prompt_confirm_reset,
     prompt_confirm_push,
     show_push_success,
@@ -116,7 +121,11 @@ def _perform_push(explicit_push: bool) -> None:
         return
 
     if not explicit_push:
-        if not prompt_confirm_push():
+        try:
+            should_push = prompt_confirm_push()
+        except Exception:
+            should_push = False
+        if not should_push:
             show_push_skipped()
             return
 
@@ -247,23 +256,40 @@ def commit_command(
 
 def _run_interactive_settings() -> None:
     while True:
-        choice = prompt_settings_menu()
+        current_p = get_provider()
+        choice = prompt_settings_menu(provider=current_p)
         if choice == "view":
             show_settings_summary(get_config_summary())
+        elif choice == "set_provider":
+            new_provider = prompt_provider_selection(current_provider=current_p)
+            if new_provider in SUPPORTED_PROVIDERS:
+                set_user_config_value("provider", new_provider)
+                show_step_success(f"AI provider set to {new_provider}.")
         elif choice == "set_key":
-            key = prompt_api_key()
-            norm_key = normalize_api_key(key)
-            if norm_key:
-                set_user_config_value("groq_api_key", norm_key)
-                show_step_success("Groq API key saved.")
+            if current_p == "ollama":
+                current_host = get_ollama_host()
+                new_host = prompt_ollama_host(current_host)
+                if new_host:
+                    set_user_config_value("ollama_host", new_host)
+                    show_step_success(f"Ollama host set to {new_host}.")
             else:
-                show_error("API key cannot be empty.")
+                key = prompt_api_key(provider=current_p)
+                norm_key = normalize_api_key(key)
+                if norm_key:
+                    set_user_config_value(f"{current_p}_api_key", norm_key)
+                    if current_p == "groq":
+                        set_user_config_value("groq_api_key", norm_key)
+                    show_step_success(f"{current_p.capitalize()} API key saved.")
+                else:
+                    show_error("API key cannot be empty.")
         elif choice == "set_model":
-            current_model = get_model()
-            new_model = prompt_model(current_model)
+            current_model = get_model(provider=current_p)
+            new_model = prompt_model(current_model, provider=current_p)
             if new_model:
-                set_user_config_value("groq_model", new_model)
-                show_step_success(f"Model set to {new_model}.")
+                set_user_config_value(f"{current_p}_model", new_model)
+                if current_p == "groq":
+                    set_user_config_value("groq_model", new_model)
+                show_step_success(f"{current_p.capitalize()} model set to {new_model}.")
         elif choice == "reset":
             if prompt_confirm_reset():
                 reset_user_config()
@@ -283,29 +309,69 @@ def settings_show():
     show_settings_summary(get_config_summary())
 
 
-@settings_app.command(name="set-model", help="Configure default model.")
+@settings_app.command(name="set-provider", help="Configure default AI provider.")
+def settings_set_provider(
+    provider: str = typer.Argument(..., help="Provider name (groq, gemini, openai, ollama)"),
+):
+    p = provider.strip().lower()
+    if p not in SUPPORTED_PROVIDERS:
+        show_error(f"Unsupported provider '{p}'. Supported providers: {', '.join(SUPPORTED_PROVIDERS)}")
+        raise typer.Exit(code=1)
+    set_user_config_value("provider", p)
+    show_step_success(f"AI provider set to {p}.")
+
+
+@settings_app.command(name="set-model", help="Configure default model for a provider.")
 def settings_set_model(
-    model: str = typer.Argument(..., help="Model name, e.g. qwen/qwen3.8-27b"),
+    model: str = typer.Argument(..., help="Model name"),
+    provider: Optional[str] = typer.Option(None, "--provider", "-p", help="Target provider (defaults to active provider)"),
 ):
     if not model.strip():
         show_error("Model name cannot be empty.")
         raise typer.Exit(code=1)
-    set_user_config_value("groq_model", model.strip())
-    show_step_success(f"Model set to {model.strip()}.")
+    p = (provider or get_provider()).strip().lower()
+    if p not in SUPPORTED_PROVIDERS:
+        show_error(f"Unsupported provider '{p}'. Supported providers: {', '.join(SUPPORTED_PROVIDERS)}")
+        raise typer.Exit(code=1)
+    set_user_config_value(f"{p}_model", model.strip())
+    if p == "groq":
+        set_user_config_value("groq_model", model.strip())
+    show_step_success(f"{p.capitalize()} model set to {model.strip()}.")
 
 
-@settings_app.command(name="set-key", help="Configure Groq API key.")
+@settings_app.command(name="set-key", help="Configure API key for a provider.")
 def settings_set_key(
-    key: Optional[str] = typer.Option(None, "--key", "-k", help="Groq API key"),
+    key: Optional[str] = typer.Option(None, "--key", "-k", help="API key"),
+    provider: Optional[str] = typer.Option(None, "--provider", "-p", help="Target provider (defaults to active provider)"),
 ):
+    p = (provider or get_provider()).strip().lower()
+    if p == "ollama":
+        show_error("Ollama runs locally and does not use an API key. Use 'set-host' to configure the host.")
+        raise typer.Exit(code=1)
+    if p not in SUPPORTED_PROVIDERS:
+        show_error(f"Unsupported provider '{p}'. Supported providers: {', '.join(SUPPORTED_PROVIDERS)}")
+        raise typer.Exit(code=1)
     if not key:
-        key = prompt_api_key()
+        key = prompt_api_key(provider=p)
     norm_key = normalize_api_key(key)
     if not norm_key:
         show_error("API key cannot be empty.")
         raise typer.Exit(code=1)
-    set_user_config_value("groq_api_key", norm_key)
-    show_step_success("Groq API key saved.")
+    set_user_config_value(f"{p}_api_key", norm_key)
+    if p == "groq":
+        set_user_config_value("groq_api_key", norm_key)
+    show_step_success(f"{p.capitalize()} API key saved.")
+
+
+@settings_app.command(name="set-host", help="Configure host URL for Ollama.")
+def settings_set_host(
+    host: str = typer.Argument(..., help="Ollama host URL, e.g. http://localhost:11434"),
+):
+    if not host.strip():
+        show_error("Host cannot be empty.")
+        raise typer.Exit(code=1)
+    set_user_config_value("ollama_host", host.strip())
+    show_step_success(f"Ollama host set to {host.strip()}.")
 
 
 @settings_app.command(name="reset", help="Reset user configuration.")

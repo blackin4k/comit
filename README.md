@@ -2,38 +2,26 @@
 
 > AI-powered Git commit messages that understand your project's commit style.
 
-Comit is a lightweight developer CLI for Git. It analyzes your staged changes and recent commit history, learns your repository's commit conventions, and uses fast LLM inference through Groq to generate concise, accurate commit messages.
+Comit is a lightweight developer CLI for Git. It analyzes your staged changes and recent commit history, learns your repository's commit conventions, and generates concise, accurate commit messages using your choice of AI provider.
 
 ## Features
 
+- **Multi-Provider Support** — Use Groq, Google Gemini, OpenAI, or local models with Ollama.
 - **Context-aware** — Analyzes your staged diff and recent commit history to match your repository's style.
 - **Developer in control** — Review, edit, regenerate, or cancel a suggested commit message before committing.
+- **Push Integration** — Optional safe remote pushing after creating a commit.
 - **Fast-track mode** — Use `-y` to automatically commit the generated message without confirmation.
-- **Settings management** — Configure your API key and model interactively or via CLI commands without editing files.
+- **Settings management** — Configure your provider, model, API keys, and endpoints interactively or via CLI commands.
 - **Safe and non-destructive** — Only analyzes staged changes with `git diff --cached`. Comit never stages files or modifies unstaged changes.
-- **Lightweight** — Built with Python, Typer, Rich, and the Groq SDK.
 
-## How It Works
+## Supported Providers
 
-```text
-Staged Git Diff
-      |
-      v
-Recent Commit History
-      |
-      v
-   Groq LLM
-      |
-      v
-Suggested Commit
-      |
-      v
-User Review
-[a] Accept  [e] Edit  [r] Regenerate  [c] Cancel
-      |
-      v
-   Git Commit
-```
+| Provider | Default Model | Authentication | Setup / Env Variable |
+| :--- | :--- | :--- | :--- |
+| **Groq** *(Default)* | `qwen/qwen3.8-27b` | API Key | `GROQ_API_KEY` |
+| **Google Gemini** | `gemini-2.5-flash` | API Key | `GEMINI_API_KEY` |
+| **OpenAI** | `gpt-4o-mini` | API Key | `OPENAI_API_KEY` |
+| **Ollama** | `llama3.2` | None (Local) | `OLLAMA_HOST` (default: `http://localhost:11434`) |
 
 ## Installation
 
@@ -41,7 +29,6 @@ User Review
 
 - Python 3.11+
 - Git
-- A Groq API key
 
 ### Install Comit
 
@@ -57,10 +44,20 @@ For editable local development:
 pip install -e .
 ```
 
-To install development and testing dependencies:
+To install with additional provider SDKs:
 
 ```bash
-pip install -e ".[test]"
+# Google Gemini SDK
+pip install -e ".[gemini]"
+
+# OpenAI SDK
+pip install -e ".[openai]"
+
+# Ollama SDK
+pip install -e ".[ollama]"
+
+# All providers and testing tools
+pip install -e ".[all,test]"
 ```
 
 ### Windows PATH Note
@@ -81,23 +78,25 @@ Common Python Scripts locations on Windows:
 git ai --version
 ```
 
-Output:
-```text
-Comit version 0.1.0
-```
+### 2. Configure Your Provider & API Key
 
-### 2. Configure Your API Key
-
-Run the interactive settings manager:
+Open the interactive settings menu:
 
 ```powershell
 git ai settings
 ```
 
-Or set the key directly from the command line:
+Or configure via CLI:
 
 ```powershell
+# Select provider (groq, gemini, openai, ollama)
+git ai settings set-provider groq
+
+# Set API key for the active provider
 git ai settings set-key
+
+# Or specify the provider directly
+git ai settings set-key --provider gemini
 ```
 
 ### 3. Generate Commit Messages
@@ -126,12 +125,13 @@ Comit provides an interactive configuration interface as well as non-interactive
 git ai settings
 ```
 
-Menu options:
+Options:
 1. View configuration
-2. Configure Groq API key
-3. Configure model
-4. Reset configuration
-5. Exit
+2. Select AI provider
+3. Configure API key / host
+4. Configure model
+5. Reset configuration
+6. Exit
 
 ### Settings Commands
 
@@ -140,14 +140,26 @@ Menu options:
   git ai settings show
   ```
 
-- **Set Groq API key (hidden prompt):**
+- **Set AI provider:**
   ```powershell
-  git ai settings set-key
+  git ai settings set-provider gemini
   ```
 
-- **Set Groq model:**
+- **Set API key (masked prompt):**
+  ```powershell
+  git ai settings set-key
+  git ai settings set-key --provider openai
+  ```
+
+- **Set model:**
   ```powershell
   git ai settings set-model qwen/qwen3.8-27b
+  git ai settings set-model gpt-4o --provider openai
+  ```
+
+- **Set Ollama host URL:**
+  ```powershell
+  git ai settings set-host http://localhost:11434
   ```
 
 - **Reset user configuration:**
@@ -159,9 +171,12 @@ Menu options:
 
 Comit resolves settings in the following order:
 
-1. **Environment variables** (e.g. `GROQ_API_KEY`, `GROQ_MODEL`, or `.env` files in your workspace)
-2. **User configuration** (`config.json` stored in your OS user directory: `%APPDATA%\comit` on Windows or `~/.config/comit` on Linux/macOS)
-3. **Application defaults** (Model: `qwen/qwen3.8-27b`, Provider: `groq`)
+1. **Environment variables**:
+   - Provider: `COMIT_PROVIDER`
+   - Model: `COMIT_MODEL`, `GROQ_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `OLLAMA_MODEL`
+   - API Keys / Endpoints: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `OLLAMA_HOST`
+2. **User configuration** (`config.json` stored in `%APPDATA%\comit` on Windows or `~/.config/comit` on Linux/macOS)
+3. **Application defaults** (Provider: `groq`, Model: `qwen/qwen3.8-27b`)
 
 ---
 
@@ -205,7 +220,7 @@ Navigate with **Up/Down arrow keys** or **k/j**, and press **Enter** to select.
 
 - **Accept (`a` or `1`)** — Creates the commit using the generated message. After the local commit succeeds, you are asked whether to push to the remote (`[y/N]`, default No).
 - **Edit (`e` or `2`)** — Opens an interactive inline editor with the generated message pre-populated for modification.
-- **Regenerate (`r` or `3`)** — Requests an alternative commit message from Groq while avoiding previous attempts.
+- **Regenerate (`r` or `3`)** — Requests an alternative commit message from the AI provider while avoiding previous attempts.
 - **Cancel (`c`, `q`, or `4`)** — Exits cleanly without creating a commit or modifying staged changes.
 
 ---

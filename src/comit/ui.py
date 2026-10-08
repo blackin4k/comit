@@ -224,17 +224,22 @@ def show_error(message: str) -> None:
 
 def show_settings_summary(summary: Dict[str, Any]) -> None:
     console.print("\n[bold cyan]Comit Configuration[/bold cyan]\n")
-    console.print(f"  [bold]AI Provider:[/bold]        {summary['provider']}")
-    console.print(f"  [bold]Groq Model:[/bold]         {summary['model']} [dim]({summary['model_source']})[/dim]")
-    console.print(f"  [bold]Groq API Key:[/bold]       {summary['api_key_masked']} [dim]({summary['api_key_source']})[/dim]")
+    console.print(f"  [bold]AI Provider:[/bold]        {summary['provider']} [dim]({summary.get('provider_source', 'default')})[/dim]")
+    console.print(f"  [bold]Model:[/bold]              {summary['model']} [dim]({summary['model_source']})[/dim]")
+    if summary['provider'] == "ollama":
+        console.print(f"  [bold]Ollama Host:[/bold]        {summary['ollama_host']}")
+    else:
+        provider_title = summary['provider'].capitalize()
+        console.print(f"  [bold]{provider_title} API Key:[/bold]    {summary['api_key_masked']} [dim]({summary['api_key_source']})[/dim]")
     console.print(f"  [bold]Config File:[/bold]        {summary['config_file']}")
     console.print(f"  [bold]Config File Status:[/bold] {'Present' if summary['config_exists'] else 'Not created (using defaults)'}\n")
 
 
-def prompt_settings_menu() -> str:
+def prompt_settings_menu(provider: str = "groq") -> str:
     options = [
         ("view", "View configuration"),
-        ("set_key", "Configure Groq API key"),
+        ("set_provider", "Select AI provider"),
+        ("set_key", f"Configure {provider.capitalize()} API key" if provider != "ollama" else "Configure Ollama host"),
         ("set_model", "Configure model"),
         ("reset", "Reset configuration"),
         ("exit", "Exit"),
@@ -242,29 +247,62 @@ def prompt_settings_menu() -> str:
     return select_arrow_menu(options, prompt_text="Settings Menu", default_index=0, allow_quit_key=True)
 
 
-def prompt_api_key() -> str:
+def prompt_provider_selection(current_provider: str = "groq") -> str:
+    options = [
+        ("groq", "Groq (Fast inference, default)"),
+        ("gemini", "Google Gemini"),
+        ("openai", "OpenAI"),
+        ("ollama", "Ollama (Local models)"),
+    ]
+    idx = 0
+    for i, (p_id, _) in enumerate(options):
+        if p_id == current_provider:
+            idx = i
+            break
+    return select_arrow_menu(options, prompt_text="Select AI Provider", default_index=idx, allow_quit_key=True)
+
+
+def prompt_api_key(provider: str = "groq") -> str:
+    provider_title = provider.capitalize()
     key = Prompt.ask(
-        "[bold]Enter Groq API Key[/bold]",
+        f"[bold]Enter {provider_title} API Key[/bold]",
         password=True,
         console=console,
     ).strip()
     return key
 
 
-def prompt_model(current_model: str) -> str:
+def prompt_model(current_model: str, provider: str = "groq") -> str:
+    provider_title = provider.capitalize()
     if sys.stdin.isatty() and sys.stdout.isatty():
         try:
             from prompt_toolkit import prompt as pt_prompt
-            model = pt_prompt("Enter Groq Model: ", default=current_model).strip()
+            model = pt_prompt(f"Enter {provider_title} Model: ", default=current_model).strip()
             return model if model else current_model
         except Exception:
             pass
     model = Prompt.ask(
-        "[bold]Enter Groq Model[/bold]",
+        f"[bold]Enter {provider_title} Model[/bold]",
         default=current_model,
         console=console,
     ).strip()
     return model if model else current_model
+
+
+def prompt_ollama_host(current_host: str = "http://localhost:11434") -> str:
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        try:
+            from prompt_toolkit import prompt as pt_prompt
+            host = pt_prompt("Enter Ollama Host: ", default=current_host).strip()
+            return host if host else current_host
+        except Exception:
+            pass
+    host = Prompt.ask(
+        "[bold]Enter Ollama Host[/bold]",
+        default=current_host,
+        console=console,
+    ).strip()
+    return host if host else current_host
 
 
 def prompt_confirm_reset() -> bool:

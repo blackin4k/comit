@@ -101,7 +101,7 @@ def test_cli_settings_set_model(tmp_path, monkeypatch):
     monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
     result = runner.invoke(app, ["settings", "set-model", "test-llama-model"])
     assert result.exit_code == 0
-    assert "Model set to test-llama-model" in result.stdout
+    assert "model set to test-llama-model" in result.stdout.lower()
 
     from comit.config import get_model
     monkeypatch.delenv("GROQ_MODEL", raising=False)
@@ -136,7 +136,7 @@ def test_cli_settings_reset(tmp_path, monkeypatch):
 
 def test_cli_settings_interactive_exit(tmp_path, monkeypatch):
     monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
-    result = runner.invoke(app, ["settings"], input="5\n")
+    result = runner.invoke(app, ["settings"], input="6\n")
     assert result.exit_code == 0
     assert "Settings Menu" in result.stdout
 
@@ -146,6 +146,35 @@ def test_cli_settings_interactive_q_exit(tmp_path, monkeypatch):
     result = runner.invoke(app, ["settings"], input="q\n")
     assert result.exit_code == 0
     assert "Settings Menu" in result.stdout
+
+
+def test_cli_settings_set_provider(tmp_path, monkeypatch):
+    monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
+    result = runner.invoke(app, ["settings", "set-provider", "gemini"])
+    assert result.exit_code == 0
+    assert "AI provider set to gemini" in result.stdout
+
+    from comit.config import get_provider
+    monkeypatch.delenv("COMIT_PROVIDER", raising=False)
+    assert get_provider() == "gemini"
+
+
+def test_cli_settings_set_provider_unsupported(tmp_path, monkeypatch):
+    monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
+    result = runner.invoke(app, ["settings", "set-provider", "unknown_provider"])
+    assert result.exit_code == 1
+    assert "Unsupported provider" in result.stderr or "Unsupported provider" in result.stdout
+
+
+def test_cli_settings_set_host(tmp_path, monkeypatch):
+    monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
+    result = runner.invoke(app, ["settings", "set-host", "http://127.0.0.1:11434"])
+    assert result.exit_code == 0
+    assert "Ollama host set to http://127.0.0.1:11434" in result.stdout
+
+    from comit.config import get_ollama_host
+    monkeypatch.delenv("OLLAMA_HOST", raising=False)
+    assert get_ollama_host() == "http://127.0.0.1:11434"
 
 
 def test_cli_settings_set_key_double_quoted(tmp_path, monkeypatch):
@@ -160,7 +189,7 @@ def test_cli_settings_set_key_double_quoted(tmp_path, monkeypatch):
     monkeypatch.delenv("Groq_Api_Key", raising=False)
     monkeypatch.delenv("GROQ_KEY", raising=False)
     assert load_user_config()["groq_api_key"] == "gsk_quoted_1234567890"
-    assert get_api_key() == "gsk_quoted_1234567890"
+    assert get_api_key(provider="groq") == "gsk_quoted_1234567890"
 
 
 def test_cli_settings_set_key_single_quoted(tmp_path, monkeypatch):
@@ -175,7 +204,26 @@ def test_cli_settings_set_key_single_quoted(tmp_path, monkeypatch):
     monkeypatch.delenv("Groq_Api_Key", raising=False)
     monkeypatch.delenv("GROQ_KEY", raising=False)
     assert load_user_config()["groq_api_key"] == "gsk_single_1234567890"
-    assert get_api_key() == "gsk_single_1234567890"
+    assert get_api_key(provider="groq") == "gsk_single_1234567890"
+
+
+def test_cli_settings_set_key_gemini(tmp_path, monkeypatch):
+    monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
+    result = runner.invoke(app, ["settings", "set-key", "--provider", "gemini", "--key", "AIzaSy_custom_key"])
+    assert result.exit_code == 0
+    assert "Gemini API key saved" in result.stdout
+
+    from comit.config import get_api_key, load_user_config
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    assert load_user_config()["gemini_api_key"] == "AIzaSy_custom_key"
+    assert get_api_key(provider="gemini") == "AIzaSy_custom_key"
+
+
+def test_cli_settings_set_key_ollama_rejected(tmp_path, monkeypatch):
+    monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
+    result = runner.invoke(app, ["settings", "set-key", "--provider", "ollama", "--key", "any_key"])
+    assert result.exit_code == 1
+    assert "Ollama runs locally" in result.stderr or "Ollama runs locally" in result.stdout
 
 
 @patch("comit.cli.prompt_settings_menu", side_effect=["set_key", "exit"])
@@ -192,7 +240,21 @@ def test_cli_settings_interactive_set_key_normalization(mock_prompt_key, mock_pr
     monkeypatch.delenv("Groq_Api_Key", raising=False)
     monkeypatch.delenv("GROQ_KEY", raising=False)
     assert load_user_config()["groq_api_key"] == "gsk_interactive_1234567890"
-    assert get_api_key() == "gsk_interactive_1234567890"
+    assert get_api_key(provider="groq") == "gsk_interactive_1234567890"
+
+
+@patch("comit.cli.prompt_settings_menu", side_effect=["set_provider", "exit"])
+@patch("comit.cli.prompt_provider_selection", return_value="openai")
+def test_cli_settings_interactive_set_provider(mock_select_p, mock_menu, tmp_path, monkeypatch):
+    monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
+    result = runner.invoke(app, ["settings"])
+    assert result.exit_code == 0
+    assert "AI provider set to openai" in result.stdout
+
+    from comit.config import get_provider
+    monkeypatch.delenv("COMIT_PROVIDER", raising=False)
+    assert get_provider() == "openai"
+
 
 
 @patch("comit.cli.is_git_repository", return_value=True)
