@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from typing import Optional
+from typing import Optional, List
 import typer
 from rich.console import Console
 
@@ -117,9 +117,12 @@ def commit_command(
         raise typer.Exit(code=1)
 
     current_message = ""
+    seen_messages: List[str] = []
+
     try:
         with console.status("[cyan]Generating commit message...[/cyan]", spinner="dots"):
             current_message = generate_commit_message(diff=diff, recent_commits=recent_commits)
+            seen_messages.append(current_message)
     except ComitAIError as e:
         show_error(str(e))
         raise typer.Exit(code=1)
@@ -144,7 +147,7 @@ def commit_command(
         display_suggested_commit(current_message)
         action = prompt_action()
 
-        if action == "a":
+        if action in ("accept", "a"):
             try:
                 success, output = create_commit(current_message)
                 if success:
@@ -157,19 +160,24 @@ def commit_command(
                 show_error(f"Git commit error: {e}")
                 raise typer.Exit(code=1)
 
-        elif action == "e":
+        elif action in ("edit", "e"):
             current_message = prompt_edit(current_message)
 
-        elif action == "r":
+        elif action in ("regenerate", "r"):
             try:
-                with console.status("[cyan]Regenerating commit message...[/cyan]", spinner="dots"):
-                    current_message = generate_commit_message(diff=diff, recent_commits=recent_commits)
+                with console.status("[cyan]Generating alternative commit message...[/cyan]", spinner="dots"):
+                    current_message = generate_commit_message(
+                        diff=diff,
+                        recent_commits=recent_commits,
+                        avoid_messages=seen_messages,
+                    )
+                    seen_messages.append(current_message)
             except ComitAIError as e:
                 show_error(str(e))
             except Exception as e:
                 show_error(f"Unexpected error during regeneration: {e}")
 
-        elif action == "c":
+        elif action in ("cancel", "c", "exit"):
             show_cancelled()
             return
 
@@ -177,26 +185,26 @@ def commit_command(
 def _run_interactive_settings() -> None:
     while True:
         choice = prompt_settings_menu()
-        if choice == "1":
+        if choice == "view":
             show_settings_summary(get_config_summary())
-        elif choice == "2":
+        elif choice == "set_key":
             key = prompt_api_key()
             if key:
                 set_user_config_value("groq_api_key", key)
                 show_step_success("Groq API key saved.")
             else:
                 show_error("API key cannot be empty.")
-        elif choice == "3":
+        elif choice == "set_model":
             current_model = get_model()
             new_model = prompt_model(current_model)
             if new_model:
                 set_user_config_value("groq_model", new_model)
                 show_step_success(f"Model set to {new_model}.")
-        elif choice == "4":
+        elif choice == "reset":
             if prompt_confirm_reset():
                 reset_user_config()
                 show_step_success("User configuration reset.")
-        elif choice == "5":
+        elif choice in ("exit", "cancel", "q"):
             break
 
 

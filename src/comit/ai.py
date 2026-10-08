@@ -30,7 +30,10 @@ class AIResponseError(ComitAIError):
 class AIProvider(ABC):
     @abstractmethod
     def generate_commit_message(
-        self, diff: str, recent_commits: Optional[List[str]] = None
+        self,
+        diff: str,
+        recent_commits: Optional[List[str]] = None,
+        avoid_messages: Optional[List[str]] = None,
     ) -> str:
         pass
 
@@ -61,12 +64,16 @@ class GroqProvider(AIProvider):
         return self._client
 
     def generate_commit_message(
-        self, diff: str, recent_commits: Optional[List[str]] = None
+        self,
+        diff: str,
+        recent_commits: Optional[List[str]] = None,
+        avoid_messages: Optional[List[str]] = None,
     ) -> str:
         import groq
 
         client = self._get_client()
-        user_prompt = build_commit_prompt(diff, recent_commits)
+        user_prompt = build_commit_prompt(diff, recent_commits, avoid_messages=avoid_messages)
+        temperature = 0.7 if avoid_messages else 0.2
 
         try:
             response = client.chat.completions.create(
@@ -75,7 +82,7 @@ class GroqProvider(AIProvider):
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
                 ],
-                temperature=0.2,
+                temperature=temperature,
                 max_tokens=250,
             )
         except groq.AuthenticationError as exc:
@@ -103,6 +110,28 @@ class GroqProvider(AIProvider):
         raw_message = response.choices[0].message.content
         cleaned = sanitize_commit_message(raw_message)
 
+        if avoid_messages and cleaned in avoid_messages:
+            try:
+                stronger_prompt = (
+                    f"{user_prompt}\n\n"
+                    "CRITICAL: The previous message was already generated. You MUST produce a distinct alternative phrasing."
+                )
+                retry_response = client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": stronger_prompt},
+                    ],
+                    temperature=0.9,
+                    max_tokens=250,
+                )
+                if retry_response.choices and retry_response.choices[0].message.content:
+                    retry_cleaned = sanitize_commit_message(retry_response.choices[0].message.content)
+                    if retry_cleaned:
+                        return retry_cleaned
+            except Exception:
+                pass
+
         if not cleaned:
             raise AIResponseError("Failed to extract a valid commit message from the AI response.")
 
@@ -116,8 +145,11 @@ def get_default_provider() -> AIProvider:
 def generate_commit_message(
     diff: str,
     recent_commits: Optional[List[str]] = None,
+    avoid_messages: Optional[List[str]] = None,
     provider: Optional[AIProvider] = None,
 ) -> str:
     if provider is None:
         provider = get_default_provider()
-    return provider.generate_commit_message(diff, recent_commits)
+    return provider.generate_commit_message(
+        diff=diff, recent_commits=recent_commits, avoid_messages=avoid_messages
+    )

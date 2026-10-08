@@ -53,11 +53,40 @@ def test_cli_commit_yes_flag(mock_create, mock_gen, mock_recent, mock_diff, mock
 @patch("comit.cli.get_staged_diff", return_value="diff --git a/app.py b/app.py\n+x = 1")
 @patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
 @patch("comit.cli.generate_commit_message", return_value="feat: add x variable")
-@patch("comit.cli.prompt_action", return_value="c")
+@patch("comit.cli.prompt_action", return_value="cancel")
 def test_cli_commit_interactive_cancel(mock_prompt, mock_gen, mock_recent, mock_diff, mock_is_git):
     result = runner.invoke(app, ["commit"])
     assert result.exit_code == 0
     assert "Cancelled" in result.stdout
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/app.py b/app.py\n+x = 1")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: initial generated message")
+@patch("comit.cli.prompt_action", side_effect=["edit", "accept"])
+@patch("comit.cli.prompt_edit", return_value="feat: manually edited message")
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] feat: manually edited message"))
+def test_cli_commit_edit_flow(mock_create, mock_edit, mock_prompt, mock_gen, mock_recent, mock_diff, mock_is_git):
+    result = runner.invoke(app, ["commit"])
+    assert result.exit_code == 0
+    mock_edit.assert_called_once_with("feat: initial generated message")
+    mock_create.assert_called_once_with("feat: manually edited message")
+    assert "Commit created successfully" in result.stdout
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/app.py b/app.py\n+x = 1")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message", side_effect=["feat: message 1", "feat: alternative message 2"])
+@patch("comit.cli.prompt_action", side_effect=["regenerate", "accept"])
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] feat: alternative message 2"))
+def test_cli_commit_regenerate_flow(mock_create, mock_prompt, mock_gen, mock_recent, mock_diff, mock_is_git):
+    result = runner.invoke(app, ["commit"])
+    assert result.exit_code == 0
+    assert mock_gen.call_count == 2
+    mock_create.assert_called_once_with("feat: alternative message 2")
+    assert "Commit created successfully" in result.stdout
 
 
 def test_cli_settings_show(tmp_path, monkeypatch):
@@ -74,7 +103,6 @@ def test_cli_settings_set_model(tmp_path, monkeypatch):
     assert result.exit_code == 0
     assert "Model set to test-llama-model" in result.stdout
 
-    # Verify setting was persisted
     from comit.config import get_model
     monkeypatch.delenv("GROQ_MODEL", raising=False)
     monkeypatch.delenv("groq_model", raising=False)
@@ -108,7 +136,13 @@ def test_cli_settings_reset(tmp_path, monkeypatch):
 
 def test_cli_settings_interactive_exit(tmp_path, monkeypatch):
     monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
-    # Option 5 is exit
     result = runner.invoke(app, ["settings"], input="5\n")
+    assert result.exit_code == 0
+    assert "Settings Menu" in result.stdout
+
+
+def test_cli_settings_interactive_q_exit(tmp_path, monkeypatch):
+    monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
+    result = runner.invoke(app, ["settings"], input="q\n")
     assert result.exit_code == 0
     assert "Settings Menu" in result.stdout

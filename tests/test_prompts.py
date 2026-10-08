@@ -39,6 +39,14 @@ def test_build_commit_prompt_without_history():
     assert "Repository has no previous commits" in prompt
 
 
+def test_build_commit_prompt_with_avoid_messages():
+    diff = "diff --git a/app.py b/app.py\n+y = 2"
+    prompt = build_commit_prompt(diff, avoid_messages=["feat: previous suggestion"])
+
+    assert "Previous suggestion(s) to avoid repeating" in prompt
+    assert "feat: previous suggestion" in prompt
+
+
 def test_sanitize_commit_message_clean():
     msg = "feat: add user authentication"
     assert sanitize_commit_message(msg) == "feat: add user authentication"

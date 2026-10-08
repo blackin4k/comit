@@ -37,7 +37,11 @@ def truncate_diff(diff: str, max_chars: int = MAX_DIFF_CHARS) -> str:
     )
 
 
-def build_commit_prompt(diff: str, recent_commits: Optional[List[str]] = None) -> str:
+def build_commit_prompt(
+    diff: str,
+    recent_commits: Optional[List[str]] = None,
+    avoid_messages: Optional[List[str]] = None,
+) -> str:
     safe_diff = truncate_diff(diff)
     parts = []
     
@@ -48,7 +52,15 @@ def build_commit_prompt(diff: str, recent_commits: Optional[List[str]] = None) -
         parts.append("Recent commit history: (Repository has no previous commits; use Conventional Commits style)")
 
     parts.append(f"\nStaged diff:\n```diff\n{safe_diff}\n```")
-    parts.append("\nGenerate ONE commit message for these changes:")
+
+    if avoid_messages:
+        avoid_str = "\n".join(f'- "{m}"' for m in avoid_messages if m and m.strip())
+        parts.append(
+            f"\nPrevious suggestion(s) to avoid repeating:\n{avoid_str}\n\n"
+            "Please generate a DIFFERENT, alternative commit message that accurately describes the staged changes without repeating the previous suggestion(s)."
+        )
+    else:
+        parts.append("\nGenerate ONE commit message for these changes:")
 
     return "\n".join(parts)
 

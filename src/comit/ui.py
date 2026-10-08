@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, Any
+import os
+import sys
+from typing import Optional, Dict, Any, List, Tuple
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
@@ -42,40 +44,147 @@ def display_suggested_commit(message: str, title: str = "Suggested commit") -> N
     console.print()
 
 
-def prompt_action() -> str:
-    console.print("[bold]What would you like to do?[/bold]\n")
-    console.print("  [bold cyan]\\[a][/bold cyan] Accept")
-    console.print("  [bold cyan]\\[e][/bold cyan] Edit")
-    console.print("  [bold cyan]\\[r][/bold cyan] Regenerate")
-    console.print("  [bold cyan]\\[c][/bold cyan] Cancel\n")
+def _read_key_event() -> str:
+    if sys.platform == "win32":
+        import msvcrt
+        ch = msvcrt.getwch()
+        if ch in ("\x00", "\xe0"):
+            ch2 = msvcrt.getwch()
+            if ch2 == "H":
+                return "up"
+            elif ch2 == "P":
+                return "down"
+            elif ch2 == "K":
+                return "left"
+            elif ch2 == "M":
+                return "right"
+            return "special"
+        elif ch in ("\r", "\n"):
+            return "enter"
+        elif ch == "\x03":
+            raise KeyboardInterrupt
+        return ch
+    else:
+        import termios
+        import tty
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            ch = sys.stdin.read(1)
+            if ch == "\x1b":
+                ch2 = sys.stdin.read(1)
+                if ch2 == "[":
+                    ch3 = sys.stdin.read(1)
+                    if ch3 == "A":
+                        return "up"
+                    elif ch3 == "B":
+                        return "down"
+                return "escape"
+            elif ch in ("\r", "\n"):
+                return "enter"
+            elif ch == "\x03":
+                raise KeyboardInterrupt
+            return ch
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
-    while True:
+
+def select_arrow_menu(
+    options: List[Tuple[str, str]],
+    prompt_text: str = "What would you like to do?",
+    default_index: int = 0,
+    allow_quit_key: bool = True,
+) -> str:
+    if not sys.stdin.isatty():
+        console.print(f"[bold]{prompt_text}[/bold]\n")
+        for idx, (opt_id, opt_label) in enumerate(options, start=1):
+            console.print(f"  [bold cyan]{opt_id}[/bold cyan] - {opt_label}")
+        choices = [opt_id for opt_id, _ in options]
+        if allow_quit_key:
+            choices.extend(["q", "quit"])
         choice = Prompt.ask(
-            "[bold]Select an option[/bold]",
-            choices=["a", "e", "r", "c", "accept", "edit", "regenerate", "cancel"],
-            default="a",
-            show_choices=False,
+            "\n[bold]Select an option[/bold]",
+            default=options[default_index][0],
             console=console,
         ).strip().lower()
+        if allow_quit_key and choice in ("q", "quit"):
+            return "cancel" if "cancel" in [o[0] for o in options] else "exit"
+        for opt_id, opt_label in options:
+            if choice in (opt_id.lower(), opt_label.lower(), str(options.index((opt_id, opt_label)) + 1)):
+                return opt_id
+        return options[default_index][0]
 
-        if choice in ("a", "accept"):
-            return "a"
-        if choice in ("e", "edit"):
-            return "e"
-        if choice in ("r", "regenerate"):
-            return "r"
-        if choice in ("c", "cancel"):
-            return "c"
+    selected = default_index
+    num_options = len(options)
+
+    console.print(f"[bold]{prompt_text}[/bold]\n")
+
+    def render_lines():
+        for i, (_, label) in enumerate(options):
+            if i == selected:
+                console.print(f"  [bold cyan]❯ {label}[/bold cyan]")
+            else:
+                console.print(f"    {label}")
+
+    render_lines()
+
+    while True:
+        try:
+            key = _read_key_event()
+        except KeyboardInterrupt:
+            console.print()
+            return "cancel" if "cancel" in [o[0] for o in options] else "exit"
+
+        if key == "up":
+            selected = (selected - 1) % num_options
+        elif key == "down":
+            selected = (selected + 1) % num_options
+        elif key == "enter":
+            console.print(f"\n[dim]Selected: {options[selected][1]}[/dim]\n")
+            return options[selected][0]
+        elif allow_quit_key and key.lower() == "q":
+            console.print("\n[dim]Selected: Exit[/dim]\n")
+            return "cancel" if "cancel" in [o[0] for o in options] else "exit"
+        else:
+            for i, (opt_id, opt_label) in enumerate(options):
+                if key.lower() in (opt_id.lower()[:1], str(i + 1)):
+                    selected = i
+                    console.print(f"\x1b[{num_options}A\r", end="")
+                    render_lines()
+                    console.print(f"\n[dim]Selected: {opt_label}[/dim]\n")
+                    return opt_id
+
+        console.print(f"\x1b[{num_options}A\r", end="")
+        render_lines()
+
+
+def prompt_action() -> str:
+    options = [
+        ("accept", "Accept"),
+        ("edit", "Edit"),
+        ("regenerate", "Regenerate"),
+        ("cancel", "Cancel"),
+    ]
+    return select_arrow_menu(options, prompt_text="What would you like to do?", default_index=0)
 
 
 def prompt_edit(current_message: str) -> str:
-    console.print("\n[bold cyan]Edit commit message[/bold cyan] (press Enter to keep or submit changes):")
-    edited = Prompt.ask(
-        "[bold]> [/bold]",
-        default=current_message,
-        console=console,
-    ).strip()
-    return edited if edited else current_message
+    console.print("\n[bold cyan]Edit commit message[/bold cyan] (use arrow keys to navigate, press Enter when done):")
+    if sys.stdin.isatty():
+        try:
+            from prompt_toolkit import prompt as pt_prompt
+            edited = pt_prompt("> ", default=current_message)
+            return edited.strip() if edited and edited.strip() else current_message
+        except Exception:
+            pass
+    try:
+        from rich.prompt import Prompt
+        edited = Prompt.ask("[bold]> [/bold]", default=current_message, console=console).strip()
+        return edited if edited else current_message
+    except Exception:
+        line = sys.stdin.readline().strip()
+        return line if line else current_message
 
 
 def show_commit_success(message: str) -> None:
@@ -106,20 +215,14 @@ def show_settings_summary(summary: Dict[str, Any]) -> None:
 
 
 def prompt_settings_menu() -> str:
-    console.print("[bold]Settings Menu[/bold]\n")
-    console.print("  [bold cyan]1.[/bold cyan] View configuration")
-    console.print("  [bold cyan]2.[/bold cyan] Configure Groq API key")
-    console.print("  [bold cyan]3.[/bold cyan] Configure model")
-    console.print("  [bold cyan]4.[/bold cyan] Reset configuration")
-    console.print("  [bold cyan]5.[/bold cyan] Exit\n")
-
-    return Prompt.ask(
-        "[bold]Select an option[/bold]",
-        choices=["1", "2", "3", "4", "5"],
-        default="1",
-        show_choices=False,
-        console=console,
-    ).strip()
+    options = [
+        ("view", "View configuration"),
+        ("set_key", "Configure Groq API key"),
+        ("set_model", "Configure model"),
+        ("reset", "Reset configuration"),
+        ("exit", "Exit"),
+    ]
+    return select_arrow_menu(options, prompt_text="Settings Menu", default_index=0, allow_quit_key=True)
 
 
 def prompt_api_key() -> str:
@@ -132,6 +235,13 @@ def prompt_api_key() -> str:
 
 
 def prompt_model(current_model: str) -> str:
+    if sys.stdin.isatty():
+        try:
+            from prompt_toolkit import prompt as pt_prompt
+            model = pt_prompt("Enter Groq Model: ", default=current_model).strip()
+            return model if model else current_model
+        except Exception:
+            pass
     model = Prompt.ask(
         "[bold]Enter Groq Model[/bold]",
         default=current_model,
