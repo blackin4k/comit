@@ -36,12 +36,14 @@ from comit.git import (
     get_default_remote,
     push_commit,
 )
+from comit.review import review_changes
 from comit.ui import (
     console,
     show_step_success,
     show_not_git_repository,
     show_no_staged_changes,
     display_suggested_commit,
+    display_review_result,
     prompt_action,
     prompt_edit,
     show_commit_success,
@@ -269,6 +271,30 @@ def commit_command(
         elif action in ("cancel", "c", "exit"):
             show_cancelled()
             return
+
+
+@app.command(name="review", help="Analyze staged changes for potential security and safety issues.")
+def review_command():
+    try:
+        if not is_git_repository():
+            show_not_git_repository()
+            raise typer.Exit(code=1)
+    except GitError as e:
+        show_error(str(e))
+        raise typer.Exit(code=1)
+
+    try:
+        context = get_commit_context()
+        if not context.changed_files and not context.staged_diff:
+            show_no_staged_changes()
+            raise typer.Exit(code=1)
+    except GitError as e:
+        show_error(str(e))
+        raise typer.Exit(code=1)
+
+    result = review_changes(context)
+    display_review_result(result)
+
 
 
 def _run_interactive_settings() -> None:

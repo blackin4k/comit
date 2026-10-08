@@ -348,3 +348,40 @@ def show_push_error(error_message: str) -> None:
     error_console.print(f"  {error_message}\n")
     console.print("Your commit was created locally and was not lost.\n")
 
+
+def display_review_result(result: Any) -> None:
+    from comit.review.models import ReviewSeverity
+
+    console.print()
+    console.print("[bold]Comit Change Review[/bold]")
+    console.print()
+
+    files_count = result.files_checked
+    files_label = f"{files_count} file{'s' if files_count != 1 else ''} changed"
+    console.print(f"  {files_label}")
+    console.print(f"  {result.diff_stat.insertions} additions")
+    console.print(f"  {result.diff_stat.deletions} deletions")
+    console.print()
+
+    if not result.has_findings:
+        console.print("[bold green]No issues detected.[/bold green]\n")
+        return
+
+    console.print("[bold]Findings:[/bold]\n")
+
+    for finding in result.findings:
+        if finding.severity == ReviewSeverity.HIGH:
+            sev_tag = "[bold red]HIGH[/bold red]"
+        elif finding.severity == ReviewSeverity.WARNING:
+            sev_tag = "[bold yellow]WARNING[/bold yellow]"
+        else:
+            sev_tag = "[bold cyan]INFO[/bold cyan]"
+
+        console.print(f"{sev_tag}")
+        console.print(f"{finding.message}")
+        console.print(f"[cyan]{finding.file_path}[/cyan]")
+        if finding.details:
+            console.print(f"  [dim]{finding.details}[/dim]")
+        console.print()
+
+    console.print("[bold]Review complete.[/bold]\n")

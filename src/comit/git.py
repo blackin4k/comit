@@ -105,6 +105,23 @@ def get_staged_changed_files(cwd: Optional[Path | str] = None) -> List[ChangedFi
     return changed_files
 
 
+def get_staged_file_size(path: str, cwd: Optional[Path | str] = None) -> int:
+    if not is_git_repository(cwd):
+        return 0
+
+    res = _run_git_command(["cat-file", "-s", f":{path}"], cwd=cwd)
+    if res.returncode == 0 and res.stdout.strip().isdigit():
+        return int(res.stdout.strip())
+
+    try:
+        target = Path(cwd) / path if cwd else Path(path)
+        if target.is_file():
+            return target.stat().st_size
+    except Exception:
+        pass
+    return 0
+
+
 def get_diff_stat(cwd: Optional[Path | str] = None) -> DiffStat:
     if not is_git_repository(cwd):
         raise NotAGitRepositoryError("Not a Git repository.")

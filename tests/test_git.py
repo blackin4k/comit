@@ -329,3 +329,35 @@ def test_get_commit_context_complete(temp_git_repo: Path):
     assert context.diff_stat.insertions >= 1
     assert context.recent_commits == ["chore: setup repo"]
     assert "def run():" in context.staged_diff
+
+
+def test_review_staged_unstaged_safety(temp_git_repo: Path):
+    from comit.git import get_commit_context
+    from comit.review import ReviewEngine
+
+    safe_file = temp_git_repo / "safe.py"
+    safe_file.write_text("print('safe code')\n", encoding="utf-8")
+    subprocess.run(["git", "add", "safe.py"], cwd=str(temp_git_repo), check=True)
+
+    # Create unstaged dangerous files and modifications
+    dangerous_env = temp_git_repo / ".env"
+    dangerous_env.write_text("SECRET_KEY=supersecret\n", encoding="utf-8")
+
+    dangerous_code = temp_git_repo / "leak.py"
+    dangerous_code.write_text("groq_key = 'gsk_123456789012345678901234'\n", encoding="utf-8")
+
+    # The review must ONLY inspect staged changes
+    ctx = get_commit_context(cwd=temp_git_repo)
+    result = ReviewEngine().run(ctx)
+
+    assert not result.has_findings
+    assert result.files_checked == 1
+    assert result.findings == []
+
+    # Now stage the dangerous file
+    subprocess.run(["git", "add", ".env"], cwd=str(temp_git_repo), check=True)
+    ctx_updated = get_commit_context(cwd=temp_git_repo)
+    result_updated = ReviewEngine().run(ctx_updated)
+
+    assert result_updated.has_findings
+    assert any(f.file_path == ".env" for f in result_updated.findings)

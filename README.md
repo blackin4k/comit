@@ -225,6 +225,62 @@ Navigate with **Up/Down arrow keys** or **k/j**, and press **Enter** to select.
 
 ---
 
+### Change Review & Safety Analysis
+
+Analyze staged changes for potential security and configuration issues before committing:
+
+```bash
+git ai review
+```
+
+Comit performs deterministic, local analysis on your staged changes to detect common problematic files and accidental additions:
+- **Sensitive files** — `.env`, `.env.*`, `credentials.json`, `secrets.yaml`, private keys (ignoring `.env.example` templates).
+- **Hardcoded secrets** — AWS keys, OpenAI/Groq/Google API keys, GitHub tokens, and literal credential assignments in added lines.
+- **Private keys** — PEM format RSA, EC, DSA, and OpenSSH private keys.
+- **Database files** — Binary databases (`.db`, `.sqlite`, `.sqlite3`, `.rdb`).
+- **Large files** — Staged files exceeding 5 MB.
+- **Generated artifacts** — `__pycache__`, `.pyc`, `dist/`, `build/`, `node_modules/`, test caches.
+- **Git internal files** — `.git-credentials`, `.gitconfig`, or staged internal `.git/` files.
+
+Example output:
+
+```text
+Comit Change Review
+
+  8 files changed
+  241 additions
+  32 deletions
+
+Findings:
+
+HIGH
+Possible hardcoded secret or API key detected
+src/config.py
+  Detected pattern: Groq API Key (gsk...xyz)
+
+WARNING
+Sensitive environment or credential file staged
+.env
+
+Review complete.
+```
+
+If no issues are found:
+
+```text
+Comit Change Review
+
+  2 files changed
+  15 additions
+  2 deletions
+
+No issues detected.
+```
+
+> **Note:** `git ai review` is a deterministic helper to assist developers before committing; it is not a full security scanner and does not guarantee security. It does not modify files, stage/unstage files, or create commits.
+
+---
+
 ### Pushing Commits
 
 Pushing is strictly opt-in and safe.

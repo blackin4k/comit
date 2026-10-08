@@ -377,3 +377,60 @@ def test_cli_commit_push_failure_rejection(mock_push, mock_prompt, mock_branch, 
     assert "Your commit was created locally and was not lost" in result.stdout
 
 
+@patch("comit.cli.is_git_repository", return_value=False)
+def test_cli_review_not_git_repo(mock_is_git):
+    result = runner.invoke(app, ["review"])
+    assert result.exit_code == 1
+    assert "Not a Git repository" in result.stderr or "Not a Git repository" in result.stdout
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_commit_context")
+def test_cli_review_no_staged_changes(mock_get_ctx, mock_is_git):
+    from comit.commit.context import CommitContext
+    mock_get_ctx.return_value = CommitContext(repository_name="test", current_branch="main", changed_files=[], staged_diff="")
+    result = runner.invoke(app, ["review"])
+    assert result.exit_code == 1
+    assert "No staged changes found" in result.stderr or "No staged changes found" in result.stdout
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_commit_context")
+def test_cli_review_clean_staged_changes(mock_get_ctx, mock_is_git):
+    from comit.commit.context import CommitContext, ChangedFile, DiffStat
+    mock_get_ctx.return_value = CommitContext(
+        repository_name="test",
+        current_branch="main",
+        changed_files=[ChangedFile(path="src/main.py", status="M")],
+        diff_stat=DiffStat(files_changed=1, insertions=5, deletions=1),
+        staged_diff="diff --git a/src/main.py b/src/main.py\n+def run(): pass",
+    )
+    result = runner.invoke(app, ["review"])
+    assert result.exit_code == 0
+    assert "Comit Change Review" in result.stdout
+    assert "No issues detected" in result.stdout
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_commit_context")
+def test_cli_review_with_findings(mock_get_ctx, mock_is_git):
+    from comit.commit.context import CommitContext, ChangedFile, DiffStat
+    mock_get_ctx.return_value = CommitContext(
+        repository_name="test",
+        current_branch="main",
+        changed_files=[
+            ChangedFile(path=".env", status="A"),
+            ChangedFile(path="keys.py", status="A"),
+        ],
+        diff_stat=DiffStat(files_changed=2, insertions=10, deletions=0),
+        staged_diff="diff --git a/keys.py b/keys.py\n+openai_key = 'sk-proj-12345678901234567890abcdef'",
+    )
+    result = runner.invoke(app, ["review"])
+    assert result.exit_code == 0
+    assert "Comit Change Review" in result.stdout
+    assert "HIGH" in result.stdout
+    assert "WARNING" in result.stdout
+    assert ".env" in result.stdout
+    assert "Review complete" in result.stdout
+
+
