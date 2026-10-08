@@ -20,15 +20,20 @@ from comit.config import (
     normalize_api_key,
     SUPPORTED_PROVIDERS,
 )
+from comit.commit.context import CommitContext
 from comit.git import (
     GitError,
     is_git_repository,
     get_staged_diff,
     get_recent_commits,
+    get_repository_name,
+    get_current_branch,
+    get_staged_changed_files,
+    get_diff_stat,
+    get_commit_context,
     create_commit,
     get_remotes,
     get_default_remote,
-    get_current_branch,
     push_commit,
 )
 from comit.ui import (
@@ -180,17 +185,30 @@ def commit_command(
     try:
         with console.status("[cyan]Analyzing commit history...[/cyan]", spinner="dots"):
             recent_commits = get_recent_commits(count=15)
+            repo_name = get_repository_name()
+            branch = get_current_branch() or "HEAD"
+            changed_files = get_staged_changed_files()
+            diff_stat = get_diff_stat()
         show_step_success("Commit history analyzed")
     except GitError as e:
         show_error(str(e))
         raise typer.Exit(code=1)
+
+    context = CommitContext(
+        repository_name=repo_name,
+        current_branch=branch,
+        changed_files=changed_files,
+        recent_commits=recent_commits,
+        diff_stat=diff_stat,
+        staged_diff=diff,
+    )
 
     current_message = ""
     seen_messages: List[str] = []
 
     try:
         with console.status("[cyan]Generating commit message...[/cyan]", spinner="dots"):
-            current_message = generate_commit_message(diff=diff, recent_commits=recent_commits)
+            current_message = generate_commit_message(context=context)
             seen_messages.append(current_message)
     except ComitAIError as e:
         show_error(str(e))
@@ -239,8 +257,7 @@ def commit_command(
             try:
                 with console.status("[cyan]Generating alternative commit message...[/cyan]", spinner="dots"):
                     current_message = generate_commit_message(
-                        diff=diff,
-                        recent_commits=recent_commits,
+                        context=context,
                         avoid_messages=seen_messages,
                     )
                     seen_messages.append(current_message)

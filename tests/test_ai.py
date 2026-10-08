@@ -240,8 +240,38 @@ def test_ollama_provider_connection_error():
 
 def test_generate_commit_message_with_custom_provider():
     class DummyProvider(AIProvider):
-        def generate_commit_message(self, diff, recent_commits=None, avoid_messages=None):
+        def generate_commit_message(self, context=None, recent_commits=None, avoid_messages=None, diff=None):
             return "refactor: simplify test setup"
 
     msg = generate_commit_message("diff...", provider=DummyProvider())
     assert msg == "refactor: simplify test setup"
+
+
+def test_generate_commit_message_with_commit_context():
+    from comit.commit.context import CommitContext, ChangedFile, DiffStat
+
+    ctx = CommitContext(
+        repository_name="test-repo",
+        current_branch="feature/commit-context",
+        changed_files=[ChangedFile(path="src/comit/prompts.py", status="M")],
+        recent_commits=["feat: add base provider"],
+        diff_stat=DiffStat(files_changed=1, insertions=10, deletions=2),
+        staged_diff="diff --git a/src/comit/prompts.py b/src/comit/prompts.py\n+new_prompt()",
+    )
+
+    class RecordingProvider(AIProvider):
+        def __init__(self):
+            self.last_prompt = None
+
+        def generate_commit_message(self, context=None, recent_commits=None, avoid_messages=None, diff=None):
+            from comit.prompts import build_commit_prompt
+            self.last_prompt = build_commit_prompt(context or diff)
+            return "feat: add commit context support"
+
+    rec_provider = RecordingProvider()
+    msg = generate_commit_message(context=ctx, provider=rec_provider)
+    assert msg == "feat: add commit context support"
+    assert "Repository: test-repo" in rec_provider.last_prompt
+    assert "Branch: feature/commit-context" in rec_provider.last_prompt
+    assert "M src/comit/prompts.py" in rec_provider.last_prompt
+    assert "+new_prompt()" in rec_provider.last_prompt

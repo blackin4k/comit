@@ -203,3 +203,129 @@ def test_push_commit_auth_failure(temp_git_repo: Path):
         assert "Authentication failed" in output
 
 
+def test_get_repository_name(temp_git_repo: Path):
+    from comit.git import get_repository_name
+    name = get_repository_name(cwd=temp_git_repo)
+    assert name == "test_repo"
+
+
+def test_get_repository_name_non_git(tmp_path: Path):
+    from comit.git import get_repository_name
+    non_repo = tmp_path / "custom_folder"
+    non_repo.mkdir()
+    name = get_repository_name(cwd=non_repo)
+    assert name == "custom_folder"
+
+
+def test_get_current_branch_detached_head(temp_git_repo: Path):
+    f = temp_git_repo / "init.txt"
+    f.write_text("initial", encoding="utf-8")
+    subprocess.run(["git", "add", "init.txt"], cwd=str(temp_git_repo), check=True)
+    subprocess.run(["git", "commit", "-m", "init commit"], cwd=str(temp_git_repo), check=True)
+
+    res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=str(temp_git_repo), check=True, capture_output=True, text=True)
+    head_sha = res.stdout.strip()
+
+    subprocess.run(["git", "checkout", head_sha], cwd=str(temp_git_repo), check=True, capture_output=True)
+    branch = get_current_branch(cwd=temp_git_repo)
+    assert "detached" in branch
+    assert head_sha in branch
+
+
+def test_get_staged_changed_files_statuses(temp_git_repo: Path):
+    from comit.git import get_staged_changed_files
+
+    # 1. Baseline commit for modified, deleted, renamed files
+    f2 = temp_git_repo / "file2.txt"
+    f2.write_text("file 2 content", encoding="utf-8")
+    f3 = temp_git_repo / "file3.txt"
+    f3.write_text("file 3 content", encoding="utf-8")
+    f4 = temp_git_repo / "file4.txt"
+    f4.write_text("file 4 content", encoding="utf-8")
+    subprocess.run(["git", "add", "file2.txt", "file3.txt", "file4.txt"], cwd=str(temp_git_repo), check=True)
+    subprocess.run(["git", "commit", "-m", "setup baseline"], cwd=str(temp_git_repo), check=True)
+
+    # 2. Add brand new file
+    f1 = temp_git_repo / "file1_added.txt"
+    f1.write_text("file 1 content", encoding="utf-8")
+    subprocess.run(["git", "add", "file1_added.txt"], cwd=str(temp_git_repo), check=True)
+
+    # 3. Modify f2
+    f2.write_text("file 2 modified content", encoding="utf-8")
+    subprocess.run(["git", "add", "file2.txt"], cwd=str(temp_git_repo), check=True)
+
+    # 4. Delete f3
+    subprocess.run(["git", "rm", "file3.txt"], cwd=str(temp_git_repo), check=True)
+
+    # 5. Rename f4 -> f4_renamed
+    subprocess.run(["git", "mv", "file4.txt", "file4_renamed.txt"], cwd=str(temp_git_repo), check=True)
+
+    # Also make an UNSTAGED change to ensure it is isolated
+    unstaged_file = temp_git_repo / "unstaged.txt"
+    unstaged_file.write_text("unstaged", encoding="utf-8")
+
+    staged_files = get_staged_changed_files(cwd=temp_git_repo)
+    status_by_path = {f.path: f for f in staged_files}
+
+    assert "file1_added.txt" in status_by_path
+    assert status_by_path["file1_added.txt"].status == "A"
+    assert status_by_path["file1_added.txt"].display_status == "Added"
+
+    assert "file2.txt" in status_by_path
+    assert status_by_path["file2.txt"].status == "M"
+    assert status_by_path["file2.txt"].display_status == "Modified"
+
+    assert "file3.txt" in status_by_path
+    assert status_by_path["file3.txt"].status == "D"
+    assert status_by_path["file3.txt"].display_status == "Deleted"
+
+    assert "file4_renamed.txt" in status_by_path
+    assert status_by_path["file4_renamed.txt"].status == "R"
+    assert status_by_path["file4_renamed.txt"].old_path == "file4.txt"
+    assert status_by_path["file4_renamed.txt"].display_status == "Renamed"
+
+    # Ensure unstaged file is not present
+    assert "unstaged.txt" not in status_by_path
+
+
+def test_get_diff_stat(temp_git_repo: Path):
+    from comit.git import get_diff_stat
+
+    stat_empty = get_diff_stat(cwd=temp_git_repo)
+    assert stat_empty.files_changed == 0
+    assert stat_empty.insertions == 0
+    assert stat_empty.deletions == 0
+
+    f1 = temp_git_repo / "a.txt"
+    f1.write_text("line1\nline2\nline3\n", encoding="utf-8")
+    subprocess.run(["git", "add", "a.txt"], cwd=str(temp_git_repo), check=True)
+
+    stat = get_diff_stat(cwd=temp_git_repo)
+    assert stat.files_changed == 1
+    assert stat.insertions == 3
+    assert stat.deletions == 0
+    assert "1 file changed" in stat.format_summary()
+
+
+def test_get_commit_context_complete(temp_git_repo: Path):
+    from comit.git import get_commit_context
+
+    f = temp_git_repo / "main.py"
+    f.write_text("print('comit')\n", encoding="utf-8")
+    subprocess.run(["git", "add", "main.py"], cwd=str(temp_git_repo), check=True)
+    subprocess.run(["git", "commit", "-m", "chore: setup repo"], cwd=str(temp_git_repo), check=True)
+
+    f2 = temp_git_repo / "feature.py"
+    f2.write_text("def run():\n    return True\n", encoding="utf-8")
+    subprocess.run(["git", "add", "feature.py"], cwd=str(temp_git_repo), check=True)
+
+    context = get_commit_context(cwd=temp_git_repo)
+    assert context.repository_name == "test_repo"
+    assert context.current_branch in ("master", "main")
+    assert len(context.changed_files) == 1
+    assert context.changed_files[0].path == "feature.py"
+    assert context.changed_files[0].status == "A"
+    assert context.diff_stat.files_changed == 1
+    assert context.diff_stat.insertions >= 1
+    assert context.recent_commits == ["chore: setup repo"]
+    assert "def run():" in context.staged_diff

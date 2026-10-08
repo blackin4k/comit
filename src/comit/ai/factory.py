@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from comit.ai.base import (
     AIProvider,
@@ -10,6 +10,7 @@ from comit.ai.groq_provider import GroqProvider
 from comit.ai.gemini_provider import GeminiProvider
 from comit.ai.openai_provider import OpenAIProvider
 from comit.ai.ollama_provider import OllamaProvider
+from comit.commit.context import CommitContext
 from comit.config import get_provider as config_get_provider
 
 SUPPORTED_PROVIDERS = ("groq", "gemini", "openai", "ollama")
@@ -42,13 +43,17 @@ def get_default_provider() -> AIProvider:
 
 
 def generate_commit_message(
-    diff: str,
+    context: Union[CommitContext, str, None] = None,
     recent_commits: Optional[List[str]] = None,
     avoid_messages: Optional[List[str]] = None,
+    diff: Optional[str] = None,
     provider: Optional[AIProvider] = None,
 ) -> str:
     if provider is None:
         provider = get_default_provider()
+    target = context if context is not None else (diff or "")
     return provider.generate_commit_message(
-        diff=diff, recent_commits=recent_commits, avoid_messages=avoid_messages
+        context=target,
+        recent_commits=recent_commits,
+        avoid_messages=avoid_messages,
     )

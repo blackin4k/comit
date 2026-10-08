@@ -1,0 +1,23 @@
+Phase 1 — Commit Intelligence
+- GitContext
+- richer staged-change information
+- recent commit history
+- branch/repository context
+- smarter prompt construction
+Phase 2 — Change Analysis
+- added/deleted/renamed files
+- suspicious files
+- secret detection
+- large/unusual changes
+- binary files
+- lock/config/environment files
+Phase 3 — git ai review
+- clean review UI
+- warnings
+- severity levels
+- deterministic checks
+- optional AI explanation
+Phase 4 — Commit validation
+Before accepting the generated message, verify that it actually describes the staged changes.
+Phase 5 — GitHub Actions + PyPI
+Only once those pieces are polished.    

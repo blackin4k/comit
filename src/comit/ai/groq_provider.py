@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from comit.ai.base import (
     AIProvider,
@@ -9,6 +9,7 @@ from comit.ai.base import (
     AIServiceError,
     AIResponseError,
 )
+from comit.commit.context import CommitContext
 from comit.config import get_api_key, get_model
 from comit.prompts import SYSTEM_PROMPT, build_commit_prompt, sanitize_commit_message
 
@@ -40,9 +41,10 @@ class GroqProvider(AIProvider):
 
     def generate_commit_message(
         self,
-        diff: str,
+        context: Union[CommitContext, str, None] = None,
         recent_commits: Optional[List[str]] = None,
         avoid_messages: Optional[List[str]] = None,
+        diff: Optional[str] = None,
     ) -> str:
         try:
             import groq
@@ -51,8 +53,9 @@ class GroqProvider(AIProvider):
                 "The 'groq' package is not installed. Please run: pip install groq"
             ) from exc
 
+        target = context if context is not None else (diff or "")
         client = self._get_client()
-        user_prompt = build_commit_prompt(diff, recent_commits, avoid_messages=avoid_messages)
+        user_prompt = build_commit_prompt(target, recent_commits=recent_commits, avoid_messages=avoid_messages)
         temperature = 0.7 if avoid_messages else 0.2
 
         try:

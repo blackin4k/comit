@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Union
+
+from comit.commit.context import CommitContext
 
 
 class ComitAIError(Exception):
@@ -32,8 +34,9 @@ class AIProvider(ABC):
     @abstractmethod
     def generate_commit_message(
         self,
-        diff: str,
+        context: Union[CommitContext, str, None] = None,
         recent_commits: Optional[List[str]] = None,
         avoid_messages: Optional[List[str]] = None,
+        diff: Optional[str] = None,
     ) -> str:
         pass

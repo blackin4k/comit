@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Optional, List, Tuple
+
+from comit.commit.context import ChangedFile, DiffStat, CommitContext
 
 
 class GitError(Exception):
@@ -50,6 +53,20 @@ def is_git_repository(cwd: Optional[Path | str] = None) -> bool:
     return res.returncode == 0 and res.stdout.strip() == "true"
 
 
+def get_repository_name(cwd: Optional[Path | str] = None) -> str:
+    if not is_git_repository(cwd):
+        target_dir = Path(cwd).resolve() if cwd else Path.cwd()
+        return target_dir.name or "repository"
+
+    res = _run_git_command(["rev-parse", "--show-toplevel"], cwd=cwd)
+    if res.returncode == 0 and res.stdout.strip():
+        top_dir = Path(res.stdout.strip()).resolve()
+        return top_dir.name
+
+    target_dir = Path(cwd).resolve() if cwd else Path.cwd()
+    return target_dir.name or "repository"
+
+
 def get_staged_diff(cwd: Optional[Path | str] = None) -> str:
     if not is_git_repository(cwd):
         raise NotAGitRepositoryError("Not a Git repository.")
@@ -60,7 +77,68 @@ def get_staged_diff(cwd: Optional[Path | str] = None) -> str:
     return res.stdout.strip()
 
 
-def get_recent_commits(count: int = 15, cwd: Optional[Path | str] = None) -> List[str]:
+def get_staged_changed_files(cwd: Optional[Path | str] = None) -> List[ChangedFile]:
+    if not is_git_repository(cwd):
+        raise NotAGitRepositoryError("Not a Git repository.")
+
+    res = _run_git_command(["diff", "--cached", "--name-status"], cwd=cwd)
+    if res.returncode != 0:
+        return []
+
+    changed_files: List[ChangedFile] = []
+    for line in res.stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("\t")
+        if len(parts) >= 3:
+            raw_status = parts[0].strip()
+            status_code = raw_status[0].upper() if raw_status else "M"
+            old_path = parts[1].strip()
+            new_path = parts[2].strip()
+            changed_files.append(ChangedFile(path=new_path, status=status_code, old_path=old_path))
+        elif len(parts) == 2:
+            raw_status = parts[0].strip()
+            status_code = raw_status[0].upper() if raw_status else "M"
+            path = parts[1].strip()
+            changed_files.append(ChangedFile(path=path, status=status_code))
+    return changed_files
+
+
+def get_diff_stat(cwd: Optional[Path | str] = None) -> DiffStat:
+    if not is_git_repository(cwd):
+        raise NotAGitRepositoryError("Not a Git repository.")
+
+    res = _run_git_command(["diff", "--cached", "--shortstat"], cwd=cwd)
+    if res.returncode != 0 or not res.stdout.strip():
+        return DiffStat()
+
+    text = res.stdout.strip()
+    files_changed = 0
+    insertions = 0
+    deletions = 0
+
+    m_files = re.search(r"(\d+)\s+file", text)
+    if m_files:
+        files_changed = int(m_files.group(1))
+
+    m_ins = re.search(r"(\d+)\s+insertion", text)
+    if m_ins:
+        insertions = int(m_ins.group(1))
+
+    m_del = re.search(r"(\d+)\s+deletion", text)
+    if m_del:
+        deletions = int(m_del.group(1))
+
+    return DiffStat(
+        files_changed=files_changed,
+        insertions=insertions,
+        deletions=deletions,
+        summary_text=text,
+    )
+
+
+def get_recent_commits(count: int = 5, cwd: Optional[Path | str] = None) -> List[str]:
     if not is_git_repository(cwd):
         raise NotAGitRepositoryError("Not a Git repository.")
 
@@ -130,7 +208,11 @@ def get_current_branch(cwd: Optional[Path | str] = None) -> Optional[str]:
         if out and out != "HEAD":
             return out
 
-    return None
+    res_sha = _run_git_command(["rev-parse", "--short", "HEAD"], cwd=cwd)
+    if res_sha.returncode == 0 and res_sha.stdout.strip():
+        return f"HEAD (detached at {res_sha.stdout.strip()})"
+
+    return "HEAD (detached)"
 
 
 def push_commit(remote: str, branch: str, cwd: Optional[Path | str] = None) -> Tuple[bool, str]:
@@ -160,3 +242,23 @@ def push_commit(remote: str, branch: str, cwd: Optional[Path | str] = None) -> T
 
     return False, clean_err
 
+
+def get_commit_context(cwd: Optional[Path | str] = None, recent_commit_count: int = 5) -> CommitContext:
+    if not is_git_repository(cwd):
+        raise NotAGitRepositoryError("Not a Git repository.")
+
+    repo_name = get_repository_name(cwd=cwd)
+    branch = get_current_branch(cwd=cwd) or "HEAD (detached)"
+    changed_files = get_staged_changed_files(cwd=cwd)
+    diff_stat = get_diff_stat(cwd=cwd)
+    recent_commits = get_recent_commits(count=recent_commit_count, cwd=cwd)
+    staged_diff = get_staged_diff(cwd=cwd)
+
+    return CommitContext(
+        repository_name=repo_name,
+        current_branch=branch,
+        changed_files=changed_files,
+        recent_commits=recent_commits,
+        diff_stat=diff_stat,
+        staged_diff=staged_diff,
+    )
