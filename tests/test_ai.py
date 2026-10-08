@@ -16,7 +16,7 @@ def test_groq_provider_missing_key(monkeypatch):
     monkeypatch.delenv("groq_api_key", raising=False)
     monkeypatch.delenv("Groq_Api_Key", raising=False)
     monkeypatch.delenv("GROQ_KEY", raising=False)
-    with patch("comit.ai._get_env_api_key", return_value=None):
+    with patch("comit.ai.get_api_key", return_value=None):
         with pytest.raises(APIKeyMissingError) as exc_info:
             GroqProvider(api_key="")
         assert "GROQ_API_KEY" in str(exc_info.value)

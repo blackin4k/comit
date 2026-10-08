@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Dict, Any
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Prompt
+from rich.prompt import Prompt, Confirm
 from rich.text import Text
 
 console = Console()
@@ -94,3 +94,55 @@ def show_cancelled() -> None:
 
 def show_error(message: str) -> None:
     error_console.print(f"[bold red]✗[/bold red] {message}")
+
+
+def show_settings_summary(summary: Dict[str, Any]) -> None:
+    console.print("\n[bold cyan]Comit Configuration[/bold cyan]\n")
+    console.print(f"  [bold]AI Provider:[/bold]        {summary['provider']}")
+    console.print(f"  [bold]Groq Model:[/bold]         {summary['model']} [dim]({summary['model_source']})[/dim]")
+    console.print(f"  [bold]Groq API Key:[/bold]       {summary['api_key_masked']} [dim]({summary['api_key_source']})[/dim]")
+    console.print(f"  [bold]Config File:[/bold]        {summary['config_file']}")
+    console.print(f"  [bold]Config File Status:[/bold] {'Present' if summary['config_exists'] else 'Not created (using defaults)'}\n")
+
+
+def prompt_settings_menu() -> str:
+    console.print("[bold]Settings Menu[/bold]\n")
+    console.print("  [bold cyan]1.[/bold cyan] View configuration")
+    console.print("  [bold cyan]2.[/bold cyan] Configure Groq API key")
+    console.print("  [bold cyan]3.[/bold cyan] Configure model")
+    console.print("  [bold cyan]4.[/bold cyan] Reset configuration")
+    console.print("  [bold cyan]5.[/bold cyan] Exit\n")
+
+    return Prompt.ask(
+        "[bold]Select an option[/bold]",
+        choices=["1", "2", "3", "4", "5"],
+        default="1",
+        show_choices=False,
+        console=console,
+    ).strip()
+
+
+def prompt_api_key() -> str:
+    key = Prompt.ask(
+        "[bold]Enter Groq API Key[/bold]",
+        password=True,
+        console=console,
+    ).strip()
+    return key
+
+
+def prompt_model(current_model: str) -> str:
+    model = Prompt.ask(
+        "[bold]Enter Groq Model[/bold]",
+        default=current_model,
+        console=console,
+    ).strip()
+    return model if model else current_model
+
+
+def prompt_confirm_reset() -> bool:
+    return Confirm.ask(
+        "[bold yellow]Are you sure you want to reset all user configuration?[/bold yellow]",
+        default=False,
+        console=console,
+    )

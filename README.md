@@ -2,91 +2,80 @@
 
 > AI-powered Git commit messages that understand your project's commit style.
 
-Comit is a lightweight developer CLI assistant for Git. It examines currently staged changes alongside recent commit history, infers your repository's conventions (such as Conventional Commits), and uses high-speed LLM inference (powered by Groq) to generate concise, accurate commit messages.
-
----
+Comit is a lightweight developer CLI for Git. It analyzes your staged changes and recent commit history, learns your repository's commit conventions, and uses fast LLM inference through Groq to generate concise, accurate commit messages.
 
 ## Features
 
-- Context-Aware: Analyzes both your staged diff and previous commit subjects to match repository style.
-- Developer in Control: Review, edit, regenerate, or cancel suggestions before committing.
-- Fast-Track Mode (-y): Automatically commit generated messages without prompts.
-- Safe and Non-Destructive: Only examines staged changes (git diff --cached). Never modifies unstaged files or automatically stages changes.
-- Minimal Dependencies: Built with Python 3.11+, Typer, Rich, and Groq SDK.
+- **Context-aware** — Analyzes your staged diff and recent commit history to match your repository's style.
+- **Developer in control** — Review, edit, regenerate, or cancel a suggested commit message before committing.
+- **Fast-track mode** — Use `-y` to automatically commit the generated message without confirmation.
+- **Settings management** — Configure your API key and model interactively or via CLI commands without editing files.
+- **Safe and non-destructive** — Only analyzes staged changes with `git diff --cached`. Comit never stages files or modifies unstaged changes.
+- **Lightweight** — Built with Python, Typer, Rich, and the Groq SDK.
 
----
-
-## Architecture
+## How It Works
 
 ```text
-Staged Git Diff (git diff --cached)
-               ↓
-Recent Commit History (git log -15)
-               ↓
-    Groq LLM (Prompt & Context)
-               ↓
-       Suggested Commit
-               ↓
-   Interactive User Action
-   [a] Accept  [e] Edit  [r] Regenerate  [c] Cancel
-               ↓
-     Git Commit (git commit -m)
+Staged Git Diff
+      |
+      v
+Recent Commit History
+      |
+      v
+   Groq LLM
+      |
+      v
+Suggested Commit
+      |
+      v
+User Review
+[a] Accept  [e] Edit  [r] Regenerate  [c] Cancel
+      |
+      v
+   Git Commit
 ```
-
----
 
 ## Installation
 
-### Prerequisites
-- Python 3.11 or higher
-- Git installed and accessible in your PATH
+### Requirements
 
-### Setup
+- Python 3.11+
+- Git
+- A Groq API key
 
-1. Install locally from source:
-   ```bash
-   pip install -e .
-   ```
+### Install Comit
 
-   To install test dependencies:
-   ```bash
-   pip install -e ".[dev]"
-   ```
+Install Comit using pip:
 
-2. PATH Configuration (Windows):
-   Ensure your Python Scripts directory (e.g. `C:\Users\<User>\AppData\Local\Programs\Python\Python313\Scripts` or active environment Scripts directory) is on your PATH so Git discovers the `git-ai` executable.
-
----
-
-## Configuration
-
-Comit uses Groq for fast model inference.
-
-Create a `.env` file in your repository or root directory (or export the variable in your shell):
-
-```env
-GROQ_API_KEY=your_groq_api_key_here
+```bash
+pip install .
 ```
 
-Security Note: Never commit or expose your `.env` file. It is automatically ignored in `.gitignore`.
+For editable local development:
 
-You can optionally customize the model via `GROQ_MODEL` (defaults to `qwen/qwen3.8-27b`):
-
-```env
-GROQ_MODEL=qwen/qwen3.8-27b
+```bash
+pip install -e .
 ```
 
----
+To install development dependencies for testing:
 
-## Verifying Installation
-
-Verify that the CLI extension is installed and discovered by Git:
-
-```powershell
-git-ai --version
+```bash
+pip install -e ".[dev]"
 ```
 
-and:
+### Windows PATH Note
+
+When installing Python packages with CLI scripts, pip places executables (like `git-ai.exe`) into your Python Scripts directory.
+
+Make sure your Python Scripts directory is on your system or user `PATH` so Git discovers the `git ai` extension from any terminal session.
+
+Common Python Scripts locations on Windows:
+- System Python: `C:\Users\<Username>\AppData\Local\Programs\Python\Python313\Scripts`
+- Virtual Environment: `<venv_path>\Scripts`
+
+## Quick Start
+
+### 1. Verify Installation
 
 ```powershell
 git ai --version
@@ -97,81 +86,175 @@ Output:
 Comit version 0.1.0
 ```
 
+### 2. Configure Your API Key
+
+Run the interactive settings manager:
+
+```powershell
+git ai settings
+```
+
+Or set the key directly from the command line:
+
+```powershell
+git ai settings set-key
+```
+
+### 3. Generate Commit Messages
+
+Stage your files:
+
+```bash
+git add <files>
+```
+
+Run Comit:
+
+```bash
+git ai commit
+```
+
+---
+
+## Configuration & Settings
+
+Comit provides an interactive configuration interface as well as non-interactive subcommands.
+
+### Interactive Settings Menu
+
+```powershell
+git ai settings
+```
+
+Menu options:
+1. View configuration
+2. Configure Groq API key
+3. Configure model
+4. Reset configuration
+5. Exit
+
+### Settings Commands
+
+- **View configuration:**
+  ```powershell
+  git ai settings show
+  ```
+
+- **Set Groq API key (hidden prompt):**
+  ```powershell
+  git ai settings set-key
+  ```
+
+- **Set Groq model:**
+  ```powershell
+  git ai settings set-model qwen/qwen3.8-27b
+  ```
+
+- **Reset user configuration:**
+  ```powershell
+  git ai settings reset
+  ```
+
+### Configuration Precedence
+
+Comit resolves settings in the following order:
+
+1. **Environment variables** (e.g. `GROQ_API_KEY`, `GROQ_MODEL`, or `.env` files in your workspace)
+2. **User configuration** (`config.json` stored in your OS user directory: `%APPDATA%\comit` on Windows or `~/.config/comit` on Linux/macOS)
+3. **Application defaults** (Model: `qwen/qwen3.8-27b`, Provider: `groq`)
+
 ---
 
 ## Usage
 
-Comit integrates directly with Git as a subcommand:
+### Interactive Mode
 
-### Standard Interactive Workflow
+First, stage your changes:
 
-1. Stage your changes:
-   ```bash
-   git add <files>
-   ```
+```bash
+git add <files>
+```
 
-2. Run Comit:
-   ```bash
-   git ai commit
-   ```
-   (or `comit commit`)
+Then run:
 
-3. Review the suggested commit message:
-   ```text
-   $ git ai commit
+```bash
+git ai commit
+```
 
-   ✓ Staged changes analyzed
-   ✓ Commit history analyzed
-   
-   ┌─ Suggested commit ───────────────────────────────────────────┐
-   │                                                              │
-   │   feat: add JWT refresh token support                        │
-   │                                                              │
-   └──────────────────────────────────────────────────────────────┘
+Comit analyzes your staged changes and recent commit history before generating a suggestion:
 
-   What would you like to do?
+```text
+Staged changes analyzed
+Commit history analyzed
 
-     [a] Accept
-     [e] Edit
-     [r] Regenerate
-     [c] Cancel
+Suggested commit:
 
-   Select an option [a]: 
-   ```
+  feat: add JWT refresh token support
 
-4. Actions:
-   - `[a]` Accept: Runs `git commit -m "<message>"` and displays success.
-   - `[e]` Edit: Lets you adjust the message in your terminal before confirming.
-   - `[r]` Regenerate: Re-queries the AI model for an alternative message.
-   - `[c]` Cancel: Aborts without making any commit or touching your staged files.
+What would you like to do?
+
+  [a] Accept
+  [e] Edit
+  [r] Regenerate
+  [c] Cancel
+
+Select an option [a]:
+```
+
+### Actions
+
+- **`[a]` Accept** — Creates the commit using the generated message.
+- **`[e]` Edit** — Prompts you to modify the message in the terminal before committing.
+- **`[r]` Regenerate** — Queries the AI model for an alternative commit message.
+- **`[c]` Cancel** — Exits without creating a commit or touching your staged changes.
 
 ---
 
-### Non-Interactive Fast Mode (-y)
+### Fast Mode (-y)
 
-For quick commits when you trust the AI generation:
+Use `-y` to automatically accept and commit the generated message without confirmation:
 
 ```bash
 git ai commit -y
 ```
 
-Output:
-```text
-✓ Staged changes analyzed
-✓ Commit history analyzed
+Example output:
 
-✓ Generated:
+```text
+Staged changes analyzed
+Commit history analyzed
+
+Generated:
 
   feat: add playlist sharing
 
-✓ Commit created successfully
+Commit created successfully
 ```
 
 ---
 
-## Running Tests
+## Safety Guarantees
 
-Run the test suite using pytest:
+Comit only reads staged changes:
+
+```bash
+git diff --cached
+```
+
+Comit does NOT:
+- Automatically run `git add`
+- Modify unstaged files
+- Modify working tree files
+- Create a commit without approval (unless `-y` is explicitly passed)
+- Write API keys or credentials into repository files
+
+If no changes are staged, Comit exits without calling the AI provider.
+
+---
+
+## Testing
+
+Run the test suite with pytest:
 
 ```bash
 pytest

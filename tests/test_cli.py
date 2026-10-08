@@ -18,6 +18,7 @@ def test_cli_help():
     assert result.exit_code == 0
     assert "Comit" in result.stdout
     assert "commit" in result.stdout
+    assert "settings" in result.stdout
 
 
 @patch("comit.cli.is_git_repository", return_value=False)
@@ -57,3 +58,57 @@ def test_cli_commit_interactive_cancel(mock_prompt, mock_gen, mock_recent, mock_
     result = runner.invoke(app, ["commit"])
     assert result.exit_code == 0
     assert "Cancelled" in result.stdout
+
+
+def test_cli_settings_show(tmp_path, monkeypatch):
+    monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
+    result = runner.invoke(app, ["settings", "show"])
+    assert result.exit_code == 0
+    assert "Comit Configuration" in result.stdout
+    assert "AI Provider:" in result.stdout
+
+
+def test_cli_settings_set_model(tmp_path, monkeypatch):
+    monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
+    result = runner.invoke(app, ["settings", "set-model", "test-llama-model"])
+    assert result.exit_code == 0
+    assert "Model set to test-llama-model" in result.stdout
+
+    # Verify setting was persisted
+    from comit.config import get_model
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
+    monkeypatch.delenv("groq_model", raising=False)
+    assert get_model() == "test-llama-model"
+
+
+def test_cli_settings_set_key(tmp_path, monkeypatch):
+    monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
+    result = runner.invoke(app, ["settings", "set-key", "--key", "gsk_custom_1234567890"])
+    assert result.exit_code == 0
+    assert "Groq API key saved" in result.stdout
+
+    from comit.config import get_api_key
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("groq_api_key", raising=False)
+    monkeypatch.delenv("Groq_Api_Key", raising=False)
+    monkeypatch.delenv("GROQ_KEY", raising=False)
+    assert get_api_key() == "gsk_custom_1234567890"
+
+
+def test_cli_settings_reset(tmp_path, monkeypatch):
+    monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
+    from comit.config import set_user_config_value, load_user_config
+    set_user_config_value("groq_model", "custom")
+
+    result = runner.invoke(app, ["settings", "reset", "--yes"])
+    assert result.exit_code == 0
+    assert "User configuration reset" in result.stdout
+    assert load_user_config() == {}
+
+
+def test_cli_settings_interactive_exit(tmp_path, monkeypatch):
+    monkeypatch.setattr("comit.config.get_config_dir", lambda: tmp_path)
+    # Option 5 is exit
+    result = runner.invoke(app, ["settings"], input="5\n")
+    assert result.exit_code == 0
+    assert "Settings Menu" in result.stdout

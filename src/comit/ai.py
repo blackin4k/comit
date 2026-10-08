@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-import os
 from abc import ABC, abstractmethod
 from typing import List, Optional
-from dotenv import load_dotenv, find_dotenv
 
+from comit.config import get_api_key, get_model
 from comit.prompts import SYSTEM_PROMPT, build_commit_prompt, sanitize_commit_message
-
-load_dotenv(find_dotenv(usecwd=True))
-
-DEFAULT_GROQ_MODEL = "qwen/qwen3.8-27b"
 
 
 class ComitAIError(Exception):
@@ -40,27 +35,16 @@ class AIProvider(ABC):
         pass
 
 
-def _get_env_api_key() -> Optional[str]:
-    for var in ("GROQ_API_KEY", "groq_api_key", "Groq_Api_Key", "GROQ_KEY"):
-        val = os.getenv(var)
-        if val and val.strip():
-            return val.strip()
-    for k, v in os.environ.items():
-        if k.strip().lower() in ("groq_api_key", "groq_key") and v and v.strip():
-            return v.strip()
-    return None
-
-
 class GroqProvider(AIProvider):
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
-        self.api_key = api_key.strip() if api_key and api_key.strip() else _get_env_api_key()
+        self.api_key = get_api_key(api_key)
         if not self.api_key:
             raise APIKeyMissingError(
-                "GROQ_API_KEY environment variable is not set.\n"
-                "Please add GROQ_API_KEY=your_key to your .env file or export it in your shell."
+                "GROQ_API_KEY is not configured.\n"
+                "Run 'git ai settings' to set your API key or export GROQ_API_KEY in your shell."
             )
 
-        self.model = model or os.getenv("GROQ_MODEL", DEFAULT_GROQ_MODEL)
+        self.model = get_model(model)
         self._client = None
 
     def _get_client(self):
