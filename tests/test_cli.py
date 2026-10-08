@@ -194,3 +194,124 @@ def test_cli_settings_interactive_set_key_normalization(mock_prompt_key, mock_pr
     assert load_user_config()["groq_api_key"] == "gsk_interactive_1234567890"
     assert get_api_key() == "gsk_interactive_1234567890"
 
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/app.py b/app.py\n+x = 1")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: add x")
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] feat: add x"))
+@patch("comit.cli.get_remotes", return_value=["origin"])
+@patch("comit.cli.get_default_remote", return_value="origin")
+@patch("comit.cli.get_current_branch", return_value="main")
+@patch("comit.cli.prompt_action", return_value="accept")
+@patch("comit.cli.prompt_confirm_push", return_value=True)
+@patch("comit.cli.push_commit", return_value=(True, "Pushed to origin/main"))
+def test_cli_commit_interactive_push_yes(mock_push, mock_confirm, mock_prompt, mock_branch, mock_remote, mock_remotes, mock_create, mock_gen, mock_recent, mock_diff, mock_is_git):
+    result = runner.invoke(app, ["commit"])
+    assert result.exit_code == 0
+    assert "Commit created successfully" in result.stdout
+    assert "Pushed to origin/main" in result.stdout
+    mock_push.assert_called_once_with("origin", "main")
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/app.py b/app.py\n+x = 1")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: add x")
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] feat: add x"))
+@patch("comit.cli.get_remotes", return_value=["origin"])
+@patch("comit.cli.get_default_remote", return_value="origin")
+@patch("comit.cli.get_current_branch", return_value="main")
+@patch("comit.cli.prompt_action", return_value="accept")
+@patch("comit.cli.prompt_confirm_push", return_value=False)
+@patch("comit.cli.push_commit")
+def test_cli_commit_interactive_push_no(mock_push, mock_confirm, mock_prompt, mock_branch, mock_remote, mock_remotes, mock_create, mock_gen, mock_recent, mock_diff, mock_is_git):
+    result = runner.invoke(app, ["commit"])
+    assert result.exit_code == 0
+    assert "Commit created successfully" in result.stdout
+    assert "Nothing was pushed" in result.stdout
+    mock_push.assert_not_called()
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/app.py b/app.py\n+x = 1")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: add x")
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] feat: add x"))
+@patch("comit.cli.get_remotes", return_value=["origin"])
+@patch("comit.cli.get_default_remote", return_value="origin")
+@patch("comit.cli.get_current_branch", return_value="main")
+@patch("comit.cli.prompt_action", return_value="accept")
+@patch("comit.cli.prompt_confirm_push")
+@patch("comit.cli.push_commit", return_value=(True, "Pushed to origin/main"))
+def test_cli_commit_explicit_push_flag(mock_push, mock_confirm, mock_prompt, mock_branch, mock_remote, mock_remotes, mock_create, mock_gen, mock_recent, mock_diff, mock_is_git):
+    result = runner.invoke(app, ["commit", "--push"])
+    assert result.exit_code == 0
+    assert "Commit created successfully" in result.stdout
+    assert "Pushed to origin/main" in result.stdout
+    mock_confirm.assert_not_called()
+    mock_push.assert_called_once_with("origin", "main")
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/app.py b/app.py\n+x = 1")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: add x")
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] feat: add x"))
+@patch("comit.cli.get_remotes", return_value=["origin"])
+@patch("comit.cli.get_default_remote", return_value="origin")
+@patch("comit.cli.get_current_branch", return_value="main")
+@patch("comit.cli.push_commit", return_value=(True, "Pushed to origin/main"))
+def test_cli_commit_yes_with_push(mock_push, mock_branch, mock_remote, mock_remotes, mock_create, mock_gen, mock_recent, mock_diff, mock_is_git):
+    result = runner.invoke(app, ["commit", "-y", "--push"])
+    assert result.exit_code == 0
+    assert "Commit created successfully" in result.stdout
+    assert "Pushed to origin/main" in result.stdout
+    mock_push.assert_called_once_with("origin", "main")
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/app.py b/app.py\n+x = 1")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: add x")
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] feat: add x"))
+@patch("comit.cli.get_remotes", return_value=[])
+@patch("comit.cli.prompt_action", return_value="accept")
+def test_cli_commit_push_no_remotes(mock_prompt, mock_remotes, mock_create, mock_gen, mock_recent, mock_diff, mock_is_git):
+    result = runner.invoke(app, ["commit", "--push"])
+    assert result.exit_code == 0
+    assert "No Git remote is configured" in result.stdout
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/app.py b/app.py\n+x = 1")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: add x")
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] feat: add x"))
+@patch("comit.cli.get_remotes", return_value=["backup", "upstream"])
+@patch("comit.cli.get_default_remote", return_value=None)
+@patch("comit.cli.prompt_action", return_value="accept")
+def test_cli_commit_push_multiple_remotes_no_origin(mock_prompt, mock_remote, mock_remotes, mock_create, mock_gen, mock_recent, mock_diff, mock_is_git):
+    result = runner.invoke(app, ["commit", "--push"])
+    assert result.exit_code == 0
+    assert "No default push remote ('origin') found" in result.stdout
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/app.py b/app.py\n+x = 1")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: add x")
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] feat: add x"))
+@patch("comit.cli.get_remotes", return_value=["origin"])
+@patch("comit.cli.get_default_remote", return_value="origin")
+@patch("comit.cli.get_current_branch", return_value="main")
+@patch("comit.cli.prompt_action", return_value="accept")
+@patch("comit.cli.push_commit", return_value=(False, "The remote rejected the push because the branch is behind the remote."))
+def test_cli_commit_push_failure_rejection(mock_push, mock_prompt, mock_branch, mock_remote, mock_remotes, mock_create, mock_gen, mock_recent, mock_diff, mock_is_git):
+    result = runner.invoke(app, ["commit", "--push"])
+    assert result.exit_code == 0
+    assert "Push failed" in result.stderr or "Push failed" in result.stdout
+    assert "behind the remote" in result.stderr or "behind the remote" in result.stdout
+    assert "Your commit was created locally and was not lost" in result.stdout
+
+

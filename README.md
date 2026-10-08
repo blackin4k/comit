@@ -203,33 +203,62 @@ Navigate with **Up/Down arrow keys** or **k/j**, and press **Enter** to select.
 
 ### Actions
 
-- **Accept (`a` or `1`)** — Creates the commit using the generated message.
+- **Accept (`a` or `1`)** — Creates the commit using the generated message. After the local commit succeeds, you are asked whether to push to the remote (`[y/N]`, default No).
 - **Edit (`e` or `2`)** — Opens an interactive inline editor with the generated message pre-populated for modification.
 - **Regenerate (`r` or `3`)** — Requests an alternative commit message from Groq while avoiding previous attempts.
 - **Cancel (`c`, `q`, or `4`)** — Exits cleanly without creating a commit or modifying staged changes.
 
 ---
 
-### Fast Mode (-y)
+### Pushing Commits
 
-Use `-y` to automatically accept and commit the generated message without confirmation:
+Pushing is strictly opt-in and safe.
+
+#### 1. Interactive commit with push confirmation
+
+```bash
+git ai commit
+```
+
+After accepting the commit, Comit asks:
+
+```text
+✓ Commit created successfully
+
+  feat: add JWT refresh token support
+
+Push this commit to the remote? [y/N]
+```
+
+Choosing `N` leaves the commit local:
+
+```text
+Commit created locally. Nothing was pushed.
+```
+
+#### 2. Automatic push after commit
+
+```bash
+git ai commit --push
+```
+
+Reviews the commit message interactively, and pushes automatically to `origin/<branch>` upon acceptance without a secondary prompt.
+
+#### 3. Fast mode without push
 
 ```bash
 git ai commit -y
 ```
 
-Example output:
+Automatically accepts the generated commit message. Does **not** push to the remote.
 
-```text
-Staged changes analyzed
-Commit history analyzed
+#### 4. Fast mode with automatic push
 
-Generated:
-
-  feat: add playlist sharing
-
-Commit created successfully
+```bash
+git ai commit -y --push
 ```
+
+Automatically accepts the generated message, creates the commit, and pushes to `origin/<branch>`.
 
 ---
 
@@ -246,9 +275,12 @@ Comit does NOT:
 - Modify unstaged files
 - Modify working tree files
 - Create a commit without approval (unless `-y` is explicitly passed)
+- Push to a remote without explicit confirmation or `--push`
+- Force push (`git push --force` is never executed)
 - Write API keys or credentials into repository files
 
 If no changes are staged, Comit exits without calling the AI provider.
+If no Git remote is configured, Comit reports that no remote exists and leaves your commit local.
 
 ---
 

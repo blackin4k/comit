@@ -23,6 +23,10 @@ from comit.git import (
     get_staged_diff,
     get_recent_commits,
     create_commit,
+    get_remotes,
+    get_default_remote,
+    get_current_branch,
+    push_commit,
 )
 from comit.ui import (
     console,
@@ -41,6 +45,12 @@ from comit.ui import (
     prompt_api_key,
     prompt_model,
     prompt_confirm_reset,
+    prompt_confirm_push,
+    show_push_success,
+    show_push_skipped,
+    show_no_remote,
+    show_no_default_remote,
+    show_push_error,
 )
 
 app = typer.Typer(
@@ -79,13 +89,62 @@ def main_callback(
     pass
 
 
+def _perform_push(explicit_push: bool) -> None:
+    try:
+        remotes = get_remotes()
+    except GitError as e:
+        show_push_error(str(e))
+        return
+
+    if not remotes:
+        show_no_remote(explicit_push=explicit_push)
+        return
+
+    remote = get_default_remote()
+    if not remote:
+        show_no_default_remote()
+        return
+
+    try:
+        branch = get_current_branch()
+    except GitError as e:
+        show_push_error(str(e))
+        return
+
+    if not branch:
+        show_push_error("Could not determine current branch (detached HEAD).")
+        return
+
+    if not explicit_push:
+        if not prompt_confirm_push():
+            show_push_skipped()
+            return
+
+    try:
+        with console.status(f"[cyan]Pushing to {remote}/{branch}...[/cyan]", spinner="dots"):
+            success, output = push_commit(remote, branch)
+        if success:
+            show_push_success(remote, branch)
+        else:
+            show_push_error(output)
+    except GitError as e:
+        show_push_error(str(e))
+    except Exception as e:
+        show_push_error(f"Unexpected error during push: {e}")
+
+
 @app.command(name="commit", help="Generate an AI-powered commit message for staged changes.")
 def commit_command(
     yes: bool = typer.Option(
         False,
         "-y",
         "--yes",
-        help="Automatically accept the generated commit message and create the commit.",
+        help="Automatically accept the generated commit message without confirmation.",
+    ),
+    push: bool = typer.Option(
+        False,
+        "--push",
+        help="Push the resulting commit to the remote after creation.",
     ),
 ):
     try:
@@ -136,6 +195,8 @@ def commit_command(
             success, output = create_commit(current_message)
             if success:
                 show_auto_commit_success(current_message)
+                if push:
+                    _perform_push(explicit_push=True)
             else:
                 show_error(f"Git commit failed:\n{output}")
                 raise typer.Exit(code=1)
@@ -153,6 +214,7 @@ def commit_command(
                 success, output = create_commit(current_message)
                 if success:
                     show_commit_success(current_message)
+                    _perform_push(explicit_push=push)
                     return
                 else:
                     show_error(f"Git commit failed:\n{output}")

@@ -8,6 +8,10 @@ from comit.git import (
     get_staged_diff,
     get_recent_commits,
     create_commit,
+    get_remotes,
+    get_default_remote,
+    get_current_branch,
+    push_commit,
     NotAGitRepositoryError,
     GitCommitError,
 )
@@ -99,3 +103,103 @@ def test_create_commit_success(temp_git_repo: Path):
 def test_create_commit_empty_message(temp_git_repo: Path):
     with pytest.raises(GitCommitError):
         create_commit("   ", cwd=temp_git_repo)
+
+
+def test_get_remotes_empty(temp_git_repo: Path):
+    remotes = get_remotes(cwd=temp_git_repo)
+    assert remotes == []
+    assert get_default_remote(cwd=temp_git_repo) is None
+
+
+def test_get_remotes_with_origin(temp_git_repo: Path):
+    subprocess.run(["git", "remote", "add", "origin", "https://github.com/example/repo.git"], cwd=str(temp_git_repo), check=True)
+    remotes = get_remotes(cwd=temp_git_repo)
+    assert remotes == ["origin"]
+    assert get_default_remote(cwd=temp_git_repo) == "origin"
+
+
+def test_get_remotes_multiple_with_origin(temp_git_repo: Path):
+    subprocess.run(["git", "remote", "add", "upstream", "https://github.com/upstream/repo.git"], cwd=str(temp_git_repo), check=True)
+    subprocess.run(["git", "remote", "add", "origin", "https://github.com/example/repo.git"], cwd=str(temp_git_repo), check=True)
+    remotes = get_remotes(cwd=temp_git_repo)
+    assert "origin" in remotes
+    assert "upstream" in remotes
+    assert get_default_remote(cwd=temp_git_repo) == "origin"
+
+
+def test_get_remotes_without_origin(temp_git_repo: Path):
+    subprocess.run(["git", "remote", "add", "backup", "https://github.com/backup/repo.git"], cwd=str(temp_git_repo), check=True)
+    subprocess.run(["git", "remote", "add", "upstream", "https://github.com/upstream/repo.git"], cwd=str(temp_git_repo), check=True)
+    assert get_default_remote(cwd=temp_git_repo) is None
+
+
+def test_get_current_branch(temp_git_repo: Path):
+    f = temp_git_repo / "init.txt"
+    f.write_text("initial", encoding="utf-8")
+    subprocess.run(["git", "add", "init.txt"], cwd=str(temp_git_repo), check=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=str(temp_git_repo), check=True)
+
+    branch = get_current_branch(cwd=temp_git_repo)
+    assert branch in ("master", "main")
+
+    subprocess.run(["git", "checkout", "-b", "feature-test"], cwd=str(temp_git_repo), check=True)
+    assert get_current_branch(cwd=temp_git_repo) == "feature-test"
+
+
+def test_push_commit_success(temp_git_repo: Path):
+    from unittest.mock import patch, MagicMock
+    from comit.git import _run_git_command as real_run
+
+    def mock_run(args, cwd=None):
+        if args and args[0] == "push":
+            res = MagicMock()
+            res.returncode = 0
+            res.stdout = "Everything up-to-date"
+            res.stderr = ""
+            return res
+        return real_run(args, cwd=cwd)
+
+    with patch("comit.git._run_git_command", side_effect=mock_run):
+        success, output = push_commit("origin", "main", cwd=temp_git_repo)
+        assert success is True
+        assert "origin/main" in output or "up-to-date" in output
+
+
+def test_push_commit_rejection_behind(temp_git_repo: Path):
+    from unittest.mock import patch, MagicMock
+    from comit.git import _run_git_command as real_run
+
+    def mock_run(args, cwd=None):
+        if args and args[0] == "push":
+            res = MagicMock()
+            res.returncode = 1
+            res.stdout = ""
+            res.stderr = "error: failed to push some refs to '...'\nhint: Updates were rejected because the remote contains work that you do\nhint: not have locally (fetch first)."
+            return res
+        return real_run(args, cwd=cwd)
+
+    with patch("comit.git._run_git_command", side_effect=mock_run):
+        success, output = push_commit("origin", "main", cwd=temp_git_repo)
+        assert success is False
+        assert "behind the remote" in output
+
+
+def test_push_commit_auth_failure(temp_git_repo: Path):
+    from unittest.mock import patch, MagicMock
+    from comit.git import _run_git_command as real_run
+
+    def mock_run(args, cwd=None):
+        if args and args[0] == "push":
+            res = MagicMock()
+            res.returncode = 1
+            res.stdout = ""
+            res.stderr = "fatal: Authentication failed for 'https://github.com/example/repo.git/'"
+            return res
+        return real_run(args, cwd=cwd)
+
+    with patch("comit.git._run_git_command", side_effect=mock_run):
+        success, output = push_commit("origin", "main", cwd=temp_git_repo)
+        assert success is False
+        assert "Authentication failed" in output
+
+

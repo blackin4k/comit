@@ -94,3 +94,69 @@ def create_commit(message: str, cwd: Optional[Path | str] = None) -> Tuple[bool,
     if res.returncode == 0:
         return True, res.stdout.strip()
     return False, res.stderr.strip() or res.stdout.strip()
+
+
+def get_remotes(cwd: Optional[Path | str] = None) -> List[str]:
+    if not is_git_repository(cwd):
+        raise NotAGitRepositoryError("Not a Git repository.")
+
+    res = _run_git_command(["remote"], cwd=cwd)
+    if res.returncode != 0:
+        return []
+    output = res.stdout.strip()
+    if not output:
+        return []
+    return [line.strip() for line in output.splitlines() if line.strip()]
+
+
+def get_default_remote(cwd: Optional[Path | str] = None) -> Optional[str]:
+    remotes = get_remotes(cwd=cwd)
+    if "origin" in remotes:
+        return "origin"
+    return None
+
+
+def get_current_branch(cwd: Optional[Path | str] = None) -> Optional[str]:
+    if not is_git_repository(cwd):
+        raise NotAGitRepositoryError("Not a Git repository.")
+
+    res = _run_git_command(["branch", "--show-current"], cwd=cwd)
+    if res.returncode == 0 and res.stdout.strip():
+        return res.stdout.strip()
+
+    res_head = _run_git_command(["rev-parse", "--abbrev-ref", "HEAD"], cwd=cwd)
+    if res_head.returncode == 0:
+        out = res_head.stdout.strip()
+        if out and out != "HEAD":
+            return out
+
+    return None
+
+
+def push_commit(remote: str, branch: str, cwd: Optional[Path | str] = None) -> Tuple[bool, str]:
+    if not is_git_repository(cwd):
+        raise NotAGitRepositoryError("Not a Git repository.")
+
+    res = _run_git_command(["push", remote, branch], cwd=cwd)
+    if res.returncode == 0:
+        return True, res.stdout.strip() or f"Pushed to {remote}/{branch}"
+
+    err = res.stderr.strip() or res.stdout.strip()
+    err_lower = err.lower()
+
+    if "rejected" in err_lower and ("fetch first" in err_lower or "behind" in err_lower or "non-fast-forward" in err_lower):
+        clean_err = "The remote rejected the push because the branch is behind the remote."
+    elif "permission denied" in err_lower or "authentication failed" in err_lower or "invalid username or password" in err_lower or "403" in err_lower or "401" in err_lower:
+        clean_err = "Authentication failed for the remote repository."
+    elif "could not resolve host" in err_lower or "connection refused" in err_lower or "fatal: unable to access" in err_lower:
+        clean_err = "Could not connect to the remote repository. Please check your network connection."
+    elif "src refspec" in err_lower or "does not match any" in err_lower:
+        clean_err = f"Branch '{branch}' does not exist locally."
+    elif "no upstream" in err_lower or "set-upstream" in err_lower:
+        clean_err = f"No upstream branch configured for '{branch}'."
+    else:
+        first_line = err.splitlines()[0] if err.splitlines() else "Git push failed."
+        clean_err = first_line
+
+    return False, clean_err
+

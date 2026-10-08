@@ -273,3 +273,40 @@ def prompt_confirm_reset() -> bool:
         default=False,
         console=console,
     )
+
+
+def prompt_confirm_push() -> bool:
+    try:
+        return Confirm.ask(
+            "\n[bold]Push this commit to the remote?[/bold]",
+            default=False,
+            console=console,
+        )
+    except Exception:
+        return False
+
+
+def show_push_success(remote: str, branch: str) -> None:
+    console.print(f"[bold green]✓[/bold green] Pushed to {remote}/{branch}\n")
+
+
+def show_push_skipped() -> None:
+    console.print("Commit created locally. Nothing was pushed.\n")
+
+
+def show_no_remote(explicit_push: bool = False) -> None:
+    if explicit_push:
+        console.print("No Git remote is configured. Commit created locally; nothing was pushed.\n")
+    else:
+        console.print("No Git remote is configured. Commit created locally.\n")
+
+
+def show_no_default_remote() -> None:
+    console.print("No default push remote ('origin') found. Commit created locally; nothing was pushed.\n")
+
+
+def show_push_error(error_message: str) -> None:
+    error_console.print("\n[bold red]✗[/bold red] Push failed\n")
+    error_console.print(f"  {error_message}\n")
+    console.print("Your commit was created locally and was not lost.\n")
+

@@ -53,3 +53,20 @@ def test_prompt_edit_prepopulated(monkeypatch):
         res = prompt_edit("feat: original message")
         assert res == "feat: modified message"
         mock_pt.assert_called_once_with("> ", default="feat: original message")
+
+
+def test_prompt_confirm_push():
+    from comit.ui import prompt_confirm_push, show_push_success, show_push_skipped, show_no_remote, show_no_default_remote, show_push_error
+    with patch("rich.prompt.Confirm.ask", return_value=True):
+        assert prompt_confirm_push() is True
+
+    with patch("rich.prompt.Confirm.ask", return_value=False):
+        assert prompt_confirm_push() is False
+
+    show_push_success("origin", "main")
+    show_push_skipped()
+    show_no_remote(explicit_push=False)
+    show_no_remote(explicit_push=True)
+    show_no_default_remote()
+    show_push_error("Something failed")
+
