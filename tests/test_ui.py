@@ -52,7 +52,41 @@ def test_prompt_edit_prepopulated(monkeypatch):
     with patch("prompt_toolkit.prompt", return_value="feat: modified message") as mock_pt:
         res = prompt_edit("feat: original message")
         assert res == "feat: modified message"
-        mock_pt.assert_called_once_with("> ", default="feat: original message")
+        assert mock_pt.call_count == 1
+        assert mock_pt.call_args[0][0] == "> "
+        assert mock_pt.call_args[1]["default"] == "feat: original message"
+
+
+def test_prompt_edit_cancel_keyboard_interrupt(monkeypatch):
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    with patch("prompt_toolkit.prompt", side_effect=KeyboardInterrupt):
+        res = prompt_edit("feat: original message")
+        assert res is None
+
+
+def test_prompt_edit_cancel_eof_error(monkeypatch):
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    with patch("prompt_toolkit.prompt", side_effect=EOFError):
+        res = prompt_edit("feat: original message")
+        assert res is None
+
+
+def test_prompt_edit_non_tty_empty_validation(monkeypatch):
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+    with patch("rich.prompt.Prompt.ask", return_value="   "):
+        res = prompt_edit("feat: original message")
+        assert res is None
+
+
+def test_prompt_confirm_continue_commit():
+    from comit.ui import prompt_confirm_continue_commit
+    with patch("rich.prompt.Confirm.ask", return_value=True):
+        assert prompt_confirm_continue_commit() is True
+
+    with patch("rich.prompt.Confirm.ask", return_value=False):
+        assert prompt_confirm_continue_commit() is False
 
 
 def test_prompt_confirm_push():
@@ -69,4 +103,3 @@ def test_prompt_confirm_push():
     show_no_remote(explicit_push=True)
     show_no_default_remote()
     show_push_error("Something failed")
-

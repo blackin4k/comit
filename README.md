@@ -196,11 +196,12 @@ Then run:
 git ai commit
 ```
 
-Comit analyzes your staged changes and recent commit history before generating a suggestion:
+Comit performs a deterministic safety review of your staged changes and analyzes your recent commit history before generating a suggestion:
 
 ```text
-Staged changes analyzed
-Commit history analyzed
+✓ Staged changes analyzed
+✓ Commit history analyzed
+✓ No issues detected
 
 Suggested commit:
 
@@ -216,10 +217,30 @@ What would you like to do?
 
 Navigate with **Up/Down arrow keys** or **k/j**, and press **Enter** to select.
 
+If safety issues or sensitive files are detected during review, Comit displays the findings and requests confirmation before proceeding to AI generation:
+
+```text
+Comit Change Review
+
+  2 files changed
+  10 additions
+  0 deletions
+
+Findings:
+
+WARNING
+Sensitive environment or credential file staged
+.env
+
+Continue to commit? [y/N]
+```
+
+Choosing `No` stops the commit flow safely without calling the AI or modifying files.
+
 ### Actions
 
 - **Accept (`a` or `1`)** — Creates the commit using the generated message. After the local commit succeeds, you are asked whether to push to the remote (`[y/N]`, default No).
-- **Edit (`e` or `2`)** — Opens an interactive inline editor with the generated message pre-populated for modification.
+- **Edit (`e` or `2`)** — Opens an interactive inline editor with the generated message pre-populated. Press **Enter** to save your changes, or **Esc** / **Ctrl+C** to cancel and keep the original generated message.
 - **Regenerate (`r` or `3`)** — Requests an alternative commit message from the AI provider while avoiding previous attempts.
 - **Cancel (`c`, `q`, or `4`)** — Exits cleanly without creating a commit or modifying staged changes.
 

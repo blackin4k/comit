@@ -187,21 +187,59 @@ def prompt_action() -> str:
     return select_arrow_menu(options, prompt_text="What would you like to do?", default_index=0)
 
 
-def prompt_edit(current_message: str) -> str:
-    console.print("\n[bold cyan]Edit commit message[/bold cyan] (use arrow keys to navigate, press Enter when done):")
-    if sys.stdin.isatty() and sys.stdout.isatty():
+def prompt_edit(current_message: str) -> Optional[str]:
+    console.print("\n[bold cyan]Edit commit message[/bold cyan] (press Enter to save, Esc or Ctrl+C to cancel):")
+    while True:
         try:
-            from prompt_toolkit import prompt as pt_prompt
-            edited = pt_prompt("> ", default=current_message)
-            return edited.strip() if edited and edited.strip() else current_message
+            if sys.stdin.isatty() and sys.stdout.isatty():
+                from prompt_toolkit import prompt as pt_prompt
+                from prompt_toolkit.key_binding import KeyBindings
+
+                kb = KeyBindings()
+                cancelled = [False]
+
+                @kb.add("escape")
+                def _(event):
+                    cancelled[0] = True
+                    event.app.exit(result=None)
+
+                edited = pt_prompt("> ", default=current_message, key_bindings=kb)
+                if cancelled[0] or edited is None:
+                    console.print("[dim]Edit cancelled. Keeping previous message.[/dim]")
+                    return None
+
+                cleaned = edited.strip()
+                if not cleaned:
+                    error_console.print("[bold red]✗[/bold red] Commit message cannot be empty. Please enter a valid message or press Esc to cancel.")
+                    continue
+                return cleaned
+            else:
+                from rich.prompt import Prompt
+                edited = Prompt.ask("[bold]> [/bold]", default=current_message, console=console)
+                if edited is None:
+                    return None
+                cleaned = edited.strip()
+                if not cleaned:
+                    error_console.print("[bold red]✗[/bold red] Commit message cannot be empty.")
+                    return None
+                return cleaned
+        except (KeyboardInterrupt, EOFError):
+            console.print("[dim]Edit cancelled. Keeping previous message.[/dim]")
+            return None
         except Exception:
-            pass
+            return None
+
+
+def prompt_confirm_continue_commit() -> bool:
     try:
-        from rich.prompt import Prompt
-        edited = Prompt.ask("[bold]> [/bold]", default=current_message, console=console).strip()
-        return edited if edited else current_message
+        return Confirm.ask(
+            "[bold]Continue to commit?[/bold]",
+            default=False,
+            console=console,
+        )
     except Exception:
-        return current_message
+        return False
+
 
 
 def show_commit_success(message: str) -> None:

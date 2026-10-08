@@ -434,3 +434,137 @@ def test_cli_review_with_findings(mock_get_ctx, mock_is_git):
     assert "Review complete" in result.stdout
 
 
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/app.py b/app.py\n+x = 1")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: add x")
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] feat: add x"))
+@patch("comit.cli.prompt_action", return_value="accept")
+def test_cli_commit_with_clean_review(mock_prompt, mock_create, mock_gen, mock_recent, mock_diff, mock_is_git):
+    result = runner.invoke(app, ["commit"])
+    assert result.exit_code == 0
+    assert "No issues detected" in result.stdout
+    assert "Commit created successfully" in result.stdout
+    mock_gen.assert_called_once()
+    mock_create.assert_called_once_with("feat: add x")
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/.env b/.env\n+SECRET=xyz")
+@patch("comit.cli.get_staged_changed_files")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message")
+@patch("comit.cli.create_commit")
+@patch("comit.cli.prompt_confirm_continue_commit", return_value=False)
+def test_cli_commit_with_review_findings_declined(mock_confirm, mock_create, mock_gen, mock_recent, mock_files, mock_diff, mock_is_git):
+    from comit.commit.context import ChangedFile
+    mock_files.return_value = [ChangedFile(path=".env", status="A")]
+
+    result = runner.invoke(app, ["commit"])
+    assert result.exit_code == 0
+    assert "Comit Change Review" in result.stdout
+    assert "WARNING" in result.stdout
+    assert "Cancelled" in result.stdout
+    mock_confirm.assert_called_once()
+    mock_gen.assert_not_called()
+    mock_create.assert_not_called()
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/.env b/.env\n+SECRET=xyz")
+@patch("comit.cli.get_staged_changed_files")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: add env file")
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] feat: add env file"))
+@patch("comit.cli.prompt_confirm_continue_commit", return_value=True)
+@patch("comit.cli.prompt_action", return_value="accept")
+def test_cli_commit_with_review_findings_accepted(mock_prompt, mock_confirm, mock_create, mock_gen, mock_recent, mock_files, mock_diff, mock_is_git):
+    from comit.commit.context import ChangedFile
+    mock_files.return_value = [ChangedFile(path=".env", status="A")]
+
+    result = runner.invoke(app, ["commit"])
+    assert result.exit_code == 0
+    assert "Comit Change Review" in result.stdout
+    assert "WARNING" in result.stdout
+    assert "Commit created successfully" in result.stdout
+    mock_confirm.assert_called_once()
+    mock_gen.assert_called_once()
+    mock_create.assert_called_once_with("feat: add env file")
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/.env b/.env\n+SECRET=xyz")
+@patch("comit.cli.get_staged_changed_files")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message")
+@patch("comit.cli.create_commit")
+@patch("comit.cli.prompt_confirm_continue_commit", return_value=False)
+def test_cli_commit_yes_with_review_findings_declined(mock_confirm, mock_create, mock_gen, mock_recent, mock_files, mock_diff, mock_is_git):
+    from comit.commit.context import ChangedFile
+    mock_files.return_value = [ChangedFile(path=".env", status="A")]
+
+    result = runner.invoke(app, ["commit", "-y"])
+    assert result.exit_code == 0
+    assert "Comit Change Review" in result.stdout
+    assert "WARNING" in result.stdout
+    assert "Cancelled" in result.stdout
+    mock_confirm.assert_called_once()
+    mock_gen.assert_not_called()
+    mock_create.assert_not_called()
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/.env b/.env\n+SECRET=xyz")
+@patch("comit.cli.get_staged_changed_files")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: add env file")
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] feat: add env file"))
+@patch("comit.cli.prompt_confirm_continue_commit", return_value=True)
+def test_cli_commit_yes_with_review_findings_accepted(mock_confirm, mock_create, mock_gen, mock_recent, mock_files, mock_diff, mock_is_git):
+    from comit.commit.context import ChangedFile
+    mock_files.return_value = [ChangedFile(path=".env", status="A")]
+
+    result = runner.invoke(app, ["commit", "-y"])
+    assert result.exit_code == 0
+    assert "Comit Change Review" in result.stdout
+    assert "Commit created successfully" in result.stdout
+    mock_confirm.assert_called_once()
+    mock_gen.assert_called_once()
+    mock_create.assert_called_once_with("feat: add env file")
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/.env b/.env\n+SECRET=xyz")
+@patch("comit.cli.get_staged_changed_files")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message")
+@patch("comit.cli.create_commit")
+@patch("comit.cli.push_commit")
+@patch("comit.cli.prompt_confirm_continue_commit", return_value=False)
+def test_cli_commit_push_with_review_findings_declined(mock_confirm, mock_push, mock_create, mock_gen, mock_recent, mock_files, mock_diff, mock_is_git):
+    from comit.commit.context import ChangedFile
+    mock_files.return_value = [ChangedFile(path=".env", status="A")]
+
+    result = runner.invoke(app, ["commit", "--push"])
+    assert result.exit_code == 0
+    assert "Cancelled" in result.stdout
+    mock_gen.assert_not_called()
+    mock_create.assert_not_called()
+    mock_push.assert_not_called()
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/app.py b/app.py\n+x = 1")
+@patch("comit.cli.get_recent_commits", return_value=["feat: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: initial generated message")
+@patch("comit.cli.prompt_action", side_effect=["edit", "accept"])
+@patch("comit.cli.prompt_edit", return_value=None)
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] feat: initial generated message"))
+def test_cli_commit_edit_cancel_flow(mock_create, mock_edit, mock_prompt, mock_gen, mock_recent, mock_diff, mock_is_git):
+    result = runner.invoke(app, ["commit"])
+    assert result.exit_code == 0
+    mock_edit.assert_called_once_with("feat: initial generated message")
+    mock_create.assert_called_once_with("feat: initial generated message")
+    assert "Commit created successfully" in result.stdout
+
+

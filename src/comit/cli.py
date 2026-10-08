@@ -46,6 +46,7 @@ from comit.ui import (
     display_review_result,
     prompt_action,
     prompt_edit,
+    prompt_confirm_continue_commit,
     show_commit_success,
     show_auto_commit_success,
     show_cancelled,
@@ -205,6 +206,16 @@ def commit_command(
         staged_diff=diff,
     )
 
+    review_result = review_changes(context)
+    if review_result.has_findings:
+        display_review_result(review_result)
+        should_continue = prompt_confirm_continue_commit()
+        if not should_continue:
+            show_cancelled()
+            return
+    else:
+        show_step_success("No issues detected")
+
     current_message = ""
     seen_messages: List[str] = []
 
@@ -253,7 +264,9 @@ def commit_command(
                 raise typer.Exit(code=1)
 
         elif action in ("edit", "e"):
-            current_message = prompt_edit(current_message)
+            edited = prompt_edit(current_message)
+            if edited:
+                current_message = edited
 
         elif action in ("regenerate", "r"):
             try:
