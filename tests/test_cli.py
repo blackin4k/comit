@@ -566,3 +566,116 @@ def test_cli_commit_edit_cancel_flow(mock_create, mock_edit, mock_prompt, mock_g
     assert "Commit created successfully" in result.stdout
 
 
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/README.md b/README.md\n+# Title")
+@patch("comit.cli.get_staged_changed_files")
+@patch("comit.cli.get_recent_commits", return_value=["docs: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: add new feature")
+@patch("comit.cli.prompt_action", return_value="accept")
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] feat: add new feature"))
+def test_cli_commit_with_validation_warning_accept(mock_create, mock_prompt, mock_gen, mock_recent, mock_files, mock_diff, mock_is_git):
+    from comit.commit.context import ChangedFile
+    mock_files.return_value = [ChangedFile(path="README.md", status="M")]
+
+    result = runner.invoke(app, ["commit"])
+    assert result.exit_code == 0
+    assert "Validation warning" in result.stdout
+    assert "documentation-only" in result.stdout
+    assert "Commit created successfully" in result.stdout
+    mock_create.assert_called_once_with("feat: add new feature")
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/README.md b/README.md\n+# Title")
+@patch("comit.cli.get_staged_changed_files")
+@patch("comit.cli.get_recent_commits", return_value=["docs: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: add new feature")
+@patch("comit.cli.prompt_action", side_effect=["edit", "accept"])
+@patch("comit.cli.prompt_edit", return_value="docs: update title")
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] docs: update title"))
+def test_cli_commit_with_validation_warning_edit_to_clean(mock_create, mock_edit, mock_prompt, mock_gen, mock_recent, mock_files, mock_diff, mock_is_git):
+    from comit.commit.context import ChangedFile
+    mock_files.return_value = [ChangedFile(path="README.md", status="M")]
+
+    result = runner.invoke(app, ["commit"])
+    assert result.exit_code == 0
+    assert "Validation warning" in result.stdout
+    assert "Commit created successfully" in result.stdout
+    mock_create.assert_called_once_with("docs: update title")
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/README.md b/README.md\n+# Title")
+@patch("comit.cli.get_staged_changed_files")
+@patch("comit.cli.get_recent_commits", return_value=["docs: initial"])
+@patch("comit.cli.generate_commit_message", side_effect=["feat: wrong feature", "docs: correct update"])
+@patch("comit.cli.prompt_action", side_effect=["regenerate", "accept"])
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] docs: correct update"))
+def test_cli_commit_with_validation_warning_regenerate_to_clean(mock_create, mock_prompt, mock_gen, mock_recent, mock_files, mock_diff, mock_is_git):
+    from comit.commit.context import ChangedFile
+    mock_files.return_value = [ChangedFile(path="README.md", status="M")]
+
+    result = runner.invoke(app, ["commit"])
+    assert result.exit_code == 0
+    assert mock_gen.call_count == 2
+    mock_create.assert_called_once_with("docs: correct update")
+    assert "Commit created successfully" in result.stdout
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/README.md b/README.md\n+# Title")
+@patch("comit.cli.get_staged_changed_files")
+@patch("comit.cli.get_recent_commits", return_value=["docs: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: add wrong feature")
+@patch("comit.cli.create_commit")
+@patch("comit.cli.prompt_confirm_continue_commit", return_value=False)
+def test_cli_commit_yes_with_validation_warning_declined(mock_confirm, mock_create, mock_gen, mock_recent, mock_files, mock_diff, mock_is_git):
+    from comit.commit.context import ChangedFile
+    mock_files.return_value = [ChangedFile(path="README.md", status="M")]
+
+    result = runner.invoke(app, ["commit", "-y"])
+    assert result.exit_code == 0
+    assert "Validation warning" in result.stdout
+    assert "Cancelled" in result.stdout
+    mock_confirm.assert_called_once()
+    mock_create.assert_not_called()
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/README.md b/README.md\n+# Title")
+@patch("comit.cli.get_staged_changed_files")
+@patch("comit.cli.get_recent_commits", return_value=["docs: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: add wrong feature")
+@patch("comit.cli.create_commit", return_value=(True, "[main 123456] feat: add wrong feature"))
+@patch("comit.cli.prompt_confirm_continue_commit", return_value=True)
+def test_cli_commit_yes_with_validation_warning_accepted(mock_confirm, mock_create, mock_gen, mock_recent, mock_files, mock_diff, mock_is_git):
+    from comit.commit.context import ChangedFile
+    mock_files.return_value = [ChangedFile(path="README.md", status="M")]
+
+    result = runner.invoke(app, ["commit", "-y"])
+    assert result.exit_code == 0
+    assert "Validation warning" in result.stdout
+    assert "Commit created successfully" in result.stdout
+    mock_confirm.assert_called_once()
+    mock_create.assert_called_once_with("feat: add wrong feature")
+
+
+@patch("comit.cli.is_git_repository", return_value=True)
+@patch("comit.cli.get_staged_diff", return_value="diff --git a/README.md b/README.md\n+# Title")
+@patch("comit.cli.get_staged_changed_files")
+@patch("comit.cli.get_recent_commits", return_value=["docs: initial"])
+@patch("comit.cli.generate_commit_message", return_value="feat: add wrong feature")
+@patch("comit.cli.create_commit")
+@patch("comit.cli.push_commit")
+@patch("comit.cli.prompt_confirm_continue_commit", return_value=False)
+def test_cli_commit_push_with_validation_warning_declined(mock_confirm, mock_push, mock_create, mock_gen, mock_recent, mock_files, mock_diff, mock_is_git):
+    from comit.commit.context import ChangedFile
+    mock_files.return_value = [ChangedFile(path="README.md", status="M")]
+
+    result = runner.invoke(app, ["commit", "-y", "--push"])
+    assert result.exit_code == 0
+    assert "Validation warning" in result.stdout
+    assert "Cancelled" in result.stdout
+    mock_confirm.assert_called_once()
+    mock_create.assert_not_called()
+    mock_push.assert_not_called()

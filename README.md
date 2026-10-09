@@ -8,6 +8,7 @@ Comit is a lightweight developer CLI for Git. It analyzes your staged changes an
 
 - **Multi-Provider Support** — Use Groq, Google Gemini, OpenAI, or local models with Ollama.
 - **Context-aware** — Analyzes your staged diff and recent commit history to match your repository's style.
+- **Commit message validation** — Deterministically validates generated commit messages against staged files to catch mismatches before committing.
 - **Developer in control** — Review, edit, regenerate, or cancel a suggested commit message before committing.
 - **Push Integration** — Optional safe remote pushing after creating a commit.
 - **Fast-track mode** — Use `-y` to automatically commit the generated message without confirmation.
@@ -196,7 +197,7 @@ Then run:
 git ai commit
 ```
 
-Comit performs a deterministic safety review of your staged changes and generates a commit suggestion:
+Comit performs a deterministic safety review of your staged changes, generates a commit suggestion, and validates the message against staged files:
 
 ```text
 No issues detected.
@@ -233,6 +234,40 @@ Choosing `No` stops the commit flow safely without calling the AI or modifying f
 - **Edit (`e` or `2`)** — Opens an interactive inline editor with the generated message pre-populated. Press **Enter** to save your changes, or **Esc** / **Ctrl+C** to cancel and keep the original generated message.
 - **Regenerate (`r` or `3`)** — Requests an alternative commit message from the AI provider while avoiding previous attempts.
 - **Cancel (`c`, `q`, or `4`)** — Exits cleanly without creating a commit or modifying staged changes.
+
+---
+
+### Commit Message Validation
+
+Before you accept a generated commit message, Comit deterministically validates the message against your staged changes:
+- **Syntax and structure** — Checks Conventional Commit format (`feat`, `fix`, `docs`, `refactor`, `test`, etc.), scopes, and breaking-change notation.
+- **Context matching** — Detects high-confidence mismatches, such as claiming a feature when only documentation or test files are staged, or referencing files absent from staged changes.
+
+If a mismatch is detected, Comit displays a warning:
+
+```text
+Generated:
+
+  feat: add authentication endpoints
+
+Validation warning:
+
+  Commit message type 'feat' does not match documentation-only staged changes.
+  All 1 staged file(s) are documentation files.
+
+> Accept
+  Edit
+  Regenerate
+  Cancel
+```
+
+You remain in full control to:
+- **Accept anyway** if the generated message accurately reflects your intent.
+- **Edit** the message directly.
+- **Regenerate** a new message from the AI provider.
+- **Cancel** without creating a commit.
+
+> **Note:** Commit validation is a deterministic consistency check to catch obvious mismatches before committing. It does not guarantee semantic correctness or full intent understanding of arbitrary code.
 
 ---
 

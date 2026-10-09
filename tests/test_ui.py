@@ -103,3 +103,24 @@ def test_prompt_confirm_push():
     show_no_remote(explicit_push=True)
     show_no_default_remote()
     show_push_error("Something failed")
+
+
+def test_display_validation_result():
+    from comit.ui import display_validation_result
+    from comit.commit.validator import ValidationResult, ValidationFinding, ValidationSeverity
+
+    clean_res = ValidationResult(message="feat: clean")
+    display_validation_result(clean_res)
+
+    warning_res = ValidationResult(
+        message="feat: mismatch",
+        findings=[
+            ValidationFinding(
+                severity=ValidationSeverity.WARNING,
+                category="context_mismatch",
+                message="Type mismatch with docs",
+                details="All staged files are docs.",
+            )
+        ],
+    )
+    display_validation_result(warning_res)

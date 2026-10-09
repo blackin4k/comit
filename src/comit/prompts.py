@@ -18,11 +18,12 @@ Requirements:
    - If the repository uses another consistent style (capitalization, prefix convention, imperative vs descriptive verbs, issue references), follow that style.
    - If there is no commit history or style is mixed, use standard Conventional Commits.
 4. Do not let previous commits or branch names override what is actually present in the staged diff.
-5. Keep the commit message concise (single-line subject, ideally under 72 characters).
-6. Do NOT wrap the message in quotation marks.
-7. Do NOT use markdown code blocks or backticks in the response.
-8. Do NOT include explanations, greetings, preamble, or commentary (e.g. do not write "Here is the commit message:").
-9. Return ONLY the commit message text.
+5. Provide a specific, informative summary of the changes. Avoid vague subjects such as 'update stuff', 'fix bug', 'changes', 'misc updates', or 'refactoring'. Prefer specific descriptions directly supported by the staged diff.
+6. Keep the commit message concise (single-line subject, ideally under 72 characters).
+7. Do NOT wrap the message in quotation marks.
+8. Do NOT use markdown code blocks or backticks in the response.
+9. Do NOT include explanations, greetings, preamble, or commentary (e.g. do not write "Here is the commit message:").
+10. Return ONLY the commit message text.
 """
 
 

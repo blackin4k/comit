@@ -333,3 +333,106 @@ def test_review_engine_multiple_findings_sorted():
     # Check sorting: HIGH comes before WARNING, which comes before INFO
     severities = [f.severity for f in result.findings]
     assert severities[0] == ReviewSeverity.HIGH
+
+
+# 9. Test-aware secret detection & deduplication tests
+def test_secret_analyzer_fake_placeholder_in_test_file():
+    analyzer = SecretAnalyzer()
+    diff = """diff --git a/tests/test_auth.py b/tests/test_auth.py
+--- a/tests/test_auth.py
++++ b/tests/test_auth.py
+@@ -1,3 +1,5 @@
++TEST_API_KEY = "test-secret-placeholder"
++MOCK_TOKEN = "example-token"
++DUMMY_KEY = "fake-secret-key-123"
++YOUR_KEY = "YOUR_API_KEY"
+"""
+    ctx = CommitContext(
+        repository_name="test",
+        current_branch="main",
+        staged_diff=diff,
+    )
+    findings = analyzer.analyze(ctx)
+    assert all(f.severity == ReviewSeverity.INFO for f in findings) or len(findings) == 0
+
+
+def test_secret_analyzer_realistic_secret_in_test_file():
+    analyzer = SecretAnalyzer()
+    diff = """diff --git a/tests/test_auth.py b/tests/test_auth.py
+--- a/tests/test_auth.py
++++ b/tests/test_auth.py
+@@ -1,2 +1,3 @@
++REAL_GROQ_KEY = "gsk_live_12345678901234567890abcdef"
+"""
+    ctx = CommitContext(
+        repository_name="test",
+        current_branch="main",
+        staged_diff=diff,
+    )
+    findings = analyzer.analyze(ctx)
+    assert len(findings) >= 1
+    assert any(f.severity in (ReviewSeverity.HIGH, ReviewSeverity.WARNING) for f in findings)
+    assert "gsk_live_12345678901234567890abcdef" not in findings[0].message
+    assert "gsk_live_12345678901234567890abcdef" not in (findings[0].details or "")
+
+
+def test_secret_analyzer_fixture_path_windows_and_posix():
+    analyzer = SecretAnalyzer()
+    diff = """diff --git a/fixtures/mock_data.py b/fixtures/mock_data.py
+--- a/fixtures/mock_data.py
++++ b/fixtures/mock_data.py
+@@ -1,2 +1,3 @@
++api_key = "test-secret-placeholder"
+diff --git a/tests\\sub\\test_api.py b/tests\\sub\\test_api.py
+--- a/tests\\sub\\test_api.py
++++ b/tests\\sub\\test_api.py
+@@ -1,2 +1,3 @@
++api_key = "example-token"
+"""
+    ctx = CommitContext(
+        repository_name="test",
+        current_branch="main",
+        staged_diff=diff,
+    )
+    findings = analyzer.analyze(ctx)
+    assert all(f.severity == ReviewSeverity.INFO for f in findings) or len(findings) == 0
+
+
+def test_private_key_in_test_file_retained_high():
+    analyzer = PrivateKeyAnalyzer()
+    diff = """diff --git a/tests/fixtures/test_key.pem b/tests/fixtures/test_key.pem
+--- a/tests/fixtures/test_key.pem
++++ b/tests/fixtures/test_key.pem
+@@ -0,0 +1,3 @@
++-----BEGIN RSA PRIVATE KEY-----
++MIIEowIBAAKCAQEA...
+"""
+    ctx = CommitContext(
+        repository_name="test",
+        current_branch="main",
+        staged_diff=diff,
+    )
+    findings = analyzer.analyze(ctx)
+    assert len(findings) == 1
+    assert findings[0].severity == ReviewSeverity.HIGH
+
+
+def test_review_engine_deduplicate_overlapping_private_key_and_secret():
+    engine = ReviewEngine()
+    diff = """diff --git a/src/keys.pem b/src/keys.pem
+--- a/src/keys.pem
++++ b/src/keys.pem
+@@ -0,0 +1,3 @@
++-----BEGIN RSA PRIVATE KEY-----
++MIIEowIBAAKCAQEA...
+"""
+    ctx = CommitContext(
+        repository_name="test",
+        current_branch="main",
+        changed_files=[ChangedFile(path="src/keys.pem", status="A")],
+        staged_diff=diff,
+    )
+    result = engine.run(ctx)
+    # Should only flag one finding for the private key on that file, not duplicate warnings
+    assert len(result.findings) == 1
+    assert result.findings[0].category == "Private Key"

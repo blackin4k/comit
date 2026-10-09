@@ -397,3 +397,16 @@ def display_review_result(result: Any) -> None:
         if finding.details:
             console.print(f"  {finding.details}")
         console.print()
+
+
+def display_validation_result(result: Any) -> None:
+    if not result.has_warnings and not result.has_errors:
+        return
+
+    console.print("Validation warning:\n")
+    for finding in result.findings:
+        if finding.severity.value in ("WARNING", "ERROR"):
+            console.print(f"  {finding.message}")
+            if finding.details:
+                console.print(f"    {finding.details}")
+    console.print()

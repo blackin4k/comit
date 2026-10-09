@@ -135,3 +135,41 @@ def test_build_commit_prompt_context_with_avoid_messages():
     assert "Branch: main" in prompt
     assert "Previous suggestion(s) to avoid repeating:" in prompt
     assert 'docs: update readme' in prompt
+
+
+def test_system_prompt_discourages_vague_messages():
+    from comit.prompts import SYSTEM_PROMPT
+
+    assert "update stuff" in SYSTEM_PROMPT.lower()
+    assert "fix bug" in SYSTEM_PROMPT.lower()
+    assert "source of truth" in SYSTEM_PROMPT.lower()
+
+
+def test_build_commit_prompt_context_ordering():
+    from comit.commit.context import CommitContext, ChangedFile, DiffStat
+
+    ctx = CommitContext(
+        repository_name="order-test",
+        current_branch="main",
+        changed_files=[ChangedFile(path="src/app.py", status="M")],
+        recent_commits=["feat: previous commit"],
+        diff_stat=DiffStat(files_changed=1, insertions=10, deletions=2),
+        staged_diff="diff --git a/src/app.py b/src/app.py\n+new_feature()",
+    )
+
+    prompt = build_commit_prompt(ctx)
+
+    idx_repo = prompt.find("Repository: order-test")
+    idx_files = prompt.find("Changed files:")
+    idx_stats = prompt.find("Change statistics:")
+    idx_recent = prompt.find("Recent commits:")
+    idx_diff = prompt.find("Staged diff:")
+
+    assert idx_repo != -1
+    assert idx_files != -1
+    assert idx_stats != -1
+    assert idx_recent != -1
+    assert idx_diff != -1
+
+    # Verify context ordering: Repo/Branch -> Changed files -> Stats -> Recent commits -> Staged diff
+    assert idx_repo < idx_files < idx_stats < idx_recent < idx_diff

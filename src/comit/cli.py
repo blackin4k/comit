@@ -20,7 +20,7 @@ from comit.config import (
     normalize_api_key,
     SUPPORTED_PROVIDERS,
 )
-from comit.commit.context import CommitContext
+from comit.commit import CommitContext, validate_commit_message
 from comit.git import (
     GitError,
     is_git_repository,
@@ -44,6 +44,7 @@ from comit.ui import (
     show_no_staged_changes,
     display_suggested_commit,
     display_review_result,
+    display_validation_result,
     prompt_action,
     prompt_edit,
     prompt_confirm_continue_commit,
@@ -223,6 +224,15 @@ def commit_command(
         raise typer.Exit(code=1)
 
     if yes:
+        val_result = validate_commit_message(current_message, context=context)
+        if val_result.has_warnings or val_result.has_errors:
+            display_suggested_commit(current_message)
+            display_validation_result(val_result)
+            should_continue = prompt_confirm_continue_commit()
+            if not should_continue:
+                show_cancelled()
+                return
+
         try:
             success, output = create_commit(current_message)
             if success:
@@ -238,7 +248,10 @@ def commit_command(
         return
 
     while True:
+        val_result = validate_commit_message(current_message, context=context)
         display_suggested_commit(current_message)
+        if val_result.has_warnings or val_result.has_errors:
+            display_validation_result(val_result)
         action = prompt_action()
 
         if action in ("accept", "a"):
