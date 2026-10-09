@@ -196,23 +196,19 @@ Then run:
 git ai commit
 ```
 
-Comit performs a deterministic safety review of your staged changes and analyzes your recent commit history before generating a suggestion:
+Comit performs a deterministic safety review of your staged changes and generates a commit suggestion:
 
 ```text
-✓ Staged changes analyzed
-✓ Commit history analyzed
-✓ No issues detected
+No issues detected.
 
-Suggested commit:
+Generated:
 
   feat: add JWT refresh token support
 
-What would you like to do?
-
-  ❯ Accept
-    Edit
-    Regenerate
-    Cancel
+> Accept
+  Edit
+  Regenerate
+  Cancel
 ```
 
 Navigate with **Up/Down arrow keys** or **k/j**, and press **Enter** to select.
@@ -220,13 +216,7 @@ Navigate with **Up/Down arrow keys** or **k/j**, and press **Enter** to select.
 If safety issues or sensitive files are detected during review, Comit displays the findings and requests confirmation before proceeding to AI generation:
 
 ```text
-Comit Change Review
-
-  2 files changed
-  10 additions
-  0 deletions
-
-Findings:
+Review findings:
 
 WARNING
 Sensitive environment or credential file staged
@@ -266,13 +256,7 @@ Comit performs deterministic, local analysis on your staged changes to detect co
 Example output:
 
 ```text
-Comit Change Review
-
-  8 files changed
-  241 additions
-  32 deletions
-
-Findings:
+Review findings:
 
 HIGH
 Possible hardcoded secret or API key detected
@@ -282,19 +266,11 @@ src/config.py
 WARNING
 Sensitive environment or credential file staged
 .env
-
-Review complete.
 ```
 
 If no issues are found:
 
 ```text
-Comit Change Review
-
-  2 files changed
-  15 additions
-  2 deletions
-
 No issues detected.
 ```
 
@@ -315,7 +291,7 @@ git ai commit
 After accepting the commit, Comit asks:
 
 ```text
-✓ Commit created successfully
+Commit created successfully.
 
   feat: add JWT refresh token support
 

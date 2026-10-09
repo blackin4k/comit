@@ -407,7 +407,6 @@ def test_cli_review_clean_staged_changes(mock_get_ctx, mock_is_git):
     )
     result = runner.invoke(app, ["review"])
     assert result.exit_code == 0
-    assert "Comit Change Review" in result.stdout
     assert "No issues detected" in result.stdout
 
 
@@ -427,11 +426,10 @@ def test_cli_review_with_findings(mock_get_ctx, mock_is_git):
     )
     result = runner.invoke(app, ["review"])
     assert result.exit_code == 0
-    assert "Comit Change Review" in result.stdout
+    assert "Review findings" in result.stdout
     assert "HIGH" in result.stdout
     assert "WARNING" in result.stdout
     assert ".env" in result.stdout
-    assert "Review complete" in result.stdout
 
 
 @patch("comit.cli.is_git_repository", return_value=True)
@@ -462,7 +460,7 @@ def test_cli_commit_with_review_findings_declined(mock_confirm, mock_create, moc
 
     result = runner.invoke(app, ["commit"])
     assert result.exit_code == 0
-    assert "Comit Change Review" in result.stdout
+    assert "Review findings" in result.stdout
     assert "WARNING" in result.stdout
     assert "Cancelled" in result.stdout
     mock_confirm.assert_called_once()
@@ -484,7 +482,7 @@ def test_cli_commit_with_review_findings_accepted(mock_prompt, mock_confirm, moc
 
     result = runner.invoke(app, ["commit"])
     assert result.exit_code == 0
-    assert "Comit Change Review" in result.stdout
+    assert "Review findings" in result.stdout
     assert "WARNING" in result.stdout
     assert "Commit created successfully" in result.stdout
     mock_confirm.assert_called_once()
@@ -505,7 +503,7 @@ def test_cli_commit_yes_with_review_findings_declined(mock_confirm, mock_create,
 
     result = runner.invoke(app, ["commit", "-y"])
     assert result.exit_code == 0
-    assert "Comit Change Review" in result.stdout
+    assert "Review findings" in result.stdout
     assert "WARNING" in result.stdout
     assert "Cancelled" in result.stdout
     mock_confirm.assert_called_once()
@@ -526,7 +524,7 @@ def test_cli_commit_yes_with_review_findings_accepted(mock_confirm, mock_create,
 
     result = runner.invoke(app, ["commit", "-y"])
     assert result.exit_code == 0
-    assert "Comit Change Review" in result.stdout
+    assert "Review findings" in result.stdout
     assert "Commit created successfully" in result.stdout
     mock_confirm.assert_called_once()
     mock_gen.assert_called_once()

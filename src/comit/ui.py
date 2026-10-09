@@ -4,9 +4,7 @@ import os
 import sys
 from typing import Optional, Dict, Any, List, Tuple
 from rich.console import Console
-from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
-from rich.text import Text
 
 if sys.platform == "win32":
     try:
@@ -22,40 +20,30 @@ error_console = Console(stderr=True)
 
 
 def show_step_success(message: str) -> None:
-    console.print(f"[bold green]✓[/bold green] {message}")
+    console.print(message)
 
 
 def show_step_error(message: str) -> None:
-    error_console.print(f"[bold red]✗[/bold red] {message}")
+    error_console.print(f"Error: {message}")
 
 
 def show_not_git_repository() -> None:
-    error_console.print("[bold red]✗[/bold red] Not a Git repository.")
+    error_console.print("Not a Git repository.")
 
 
 def show_no_staged_changes() -> None:
-    error_console.print("[bold red]✗[/bold red] No staged changes found.\n")
+    error_console.print("No staged changes found.\n")
     error_console.print("Stage your changes first:")
-    error_console.print("  [bold cyan]git add <files>[/bold cyan]\n")
+    error_console.print("  git add <files>\n")
 
 
-def display_suggested_commit(message: str, title: str = "Suggested commit") -> None:
-    console.print()
-    content = Text(f"  {message}", style="bold white")
-    panel = Panel(
-        content,
-        title=f"[bold cyan]{title}[/bold cyan]",
-        title_align="left",
-        border_style="cyan",
-        padding=(1, 2),
-    )
-    console.print(panel)
-    console.print()
+def display_suggested_commit(message: str, title: str = "Generated") -> None:
+    console.print(f"{title}:\n\n  {message}\n")
 
 
 def _run_prompt_toolkit_menu(
     options: List[Tuple[str, str]],
-    prompt_text: str = "What would you like to do?",
+    prompt_text: str = "",
     default_index: int = 0,
     allow_quit_key: bool = True,
 ) -> Optional[str]:
@@ -107,12 +95,14 @@ def _run_prompt_toolkit_menu(
         event.app.exit(result=res)
 
     def get_formatted_text():
-        tokens = [("bold", f"{prompt_text}\n\n")]
+        tokens = []
+        if prompt_text:
+            tokens.append(("bold", f"{prompt_text}\n\n"))
         for i, (_, label) in enumerate(options):
             if i == selected[0]:
-                tokens.append(("ansicyan bold", f"  ❯ {label}\n"))
+                tokens.append(("ansicyan bold", f"> {label}\n"))
             else:
-                tokens.append(("", f"    {label}\n"))
+                tokens.append(("", f"  {label}\n"))
         return tokens
 
     style = Style.from_dict({
@@ -135,7 +125,7 @@ def _run_prompt_toolkit_menu(
 
 def select_arrow_menu(
     options: List[Tuple[str, str]],
-    prompt_text: str = "What would you like to do?",
+    prompt_text: str = "",
     default_index: int = 0,
     allow_quit_key: bool = True,
 ) -> str:
@@ -148,21 +138,20 @@ def select_arrow_menu(
                 allow_quit_key=allow_quit_key,
             )
             if result:
-                label = dict(options).get(result, result.title())
-                console.print(f"[dim]Selected: {label}[/dim]\n")
                 return result
         except Exception:
             pass
 
-    console.print(f"[bold]{prompt_text}[/bold]\n")
+    if prompt_text:
+        console.print(f"{prompt_text}\n")
     for idx, (opt_id, opt_label) in enumerate(options, start=1):
-        console.print(f"  [bold cyan]{opt_id}[/bold cyan] - {opt_label}")
+        console.print(f"  {opt_id} - {opt_label}")
     choices = [opt_id for opt_id, _ in options]
     if allow_quit_key:
         choices.extend(["q", "quit"])
     try:
         choice = Prompt.ask(
-            "\n[bold]Select an option[/bold]",
+            "\nSelect an option",
             default=options[default_index][0],
             console=console,
         ).strip().lower()
@@ -184,11 +173,11 @@ def prompt_action() -> str:
         ("regenerate", "Regenerate"),
         ("cancel", "Cancel"),
     ]
-    return select_arrow_menu(options, prompt_text="What would you like to do?", default_index=0)
+    return select_arrow_menu(options, prompt_text="", default_index=0)
 
 
 def prompt_edit(current_message: str) -> Optional[str]:
-    console.print("\n[bold cyan]Edit commit message[/bold cyan] (press Enter to save, Esc or Ctrl+C to cancel):")
+    console.print("\nEdit commit message (press Enter to save, Esc or Ctrl+C to cancel):")
     while True:
         try:
             if sys.stdin.isatty() and sys.stdout.isatty():
@@ -205,26 +194,26 @@ def prompt_edit(current_message: str) -> Optional[str]:
 
                 edited = pt_prompt("> ", default=current_message, key_bindings=kb)
                 if cancelled[0] or edited is None:
-                    console.print("[dim]Edit cancelled. Keeping previous message.[/dim]")
+                    console.print("Edit cancelled. Keeping previous message.")
                     return None
 
                 cleaned = edited.strip()
                 if not cleaned:
-                    error_console.print("[bold red]✗[/bold red] Commit message cannot be empty. Please enter a valid message or press Esc to cancel.")
+                    error_console.print("Commit message cannot be empty. Please enter a valid message or press Esc to cancel.")
                     continue
                 return cleaned
             else:
                 from rich.prompt import Prompt
-                edited = Prompt.ask("[bold]> [/bold]", default=current_message, console=console)
+                edited = Prompt.ask("> ", default=current_message, console=console)
                 if edited is None:
                     return None
                 cleaned = edited.strip()
                 if not cleaned:
-                    error_console.print("[bold red]✗[/bold red] Commit message cannot be empty.")
+                    error_console.print("Commit message cannot be empty.")
                     return None
                 return cleaned
         except (KeyboardInterrupt, EOFError):
-            console.print("[dim]Edit cancelled. Keeping previous message.[/dim]")
+            console.print("Edit cancelled. Keeping previous message.")
             return None
         except Exception:
             return None
@@ -233,7 +222,7 @@ def prompt_edit(current_message: str) -> Optional[str]:
 def prompt_confirm_continue_commit() -> bool:
     try:
         return Confirm.ask(
-            "[bold]Continue to commit?[/bold]",
+            "Continue to commit?",
             default=False,
             console=console,
         )
@@ -241,36 +230,34 @@ def prompt_confirm_continue_commit() -> bool:
         return False
 
 
-
 def show_commit_success(message: str) -> None:
-    console.print("\n[bold green]✓[/bold green] Commit created successfully\n")
-    console.print(f"  [bold]{message}[/bold]\n")
+    console.print("\nCommit created successfully.\n")
+    console.print(f"  {message}\n")
 
 
 def show_auto_commit_success(message: str) -> None:
-    console.print(f"\n[bold green]✓[/bold green] Generated:\n\n  [bold]{message}[/bold]\n")
-    console.print("[bold green]✓[/bold green] Commit created successfully\n")
+    console.print(f"\nGenerated:\n\n  {message}\n\nCommit created successfully.\n")
 
 
 def show_cancelled() -> None:
-    console.print("\n[yellow]Cancelled. No commit was created.[/yellow]\n")
+    console.print("\nCancelled. No commit was created.\n")
 
 
 def show_error(message: str) -> None:
-    error_console.print(f"[bold red]✗[/bold red] {message}")
+    error_console.print(f"Error: {message}")
 
 
 def show_settings_summary(summary: Dict[str, Any]) -> None:
-    console.print("\n[bold cyan]Comit Configuration[/bold cyan]\n")
-    console.print(f"  [bold]AI Provider:[/bold]        {summary['provider']} [dim]({summary.get('provider_source', 'default')})[/dim]")
-    console.print(f"  [bold]Model:[/bold]              {summary['model']} [dim]({summary['model_source']})[/dim]")
+    console.print("\nComit Configuration\n")
+    console.print(f"  AI Provider:        {summary['provider']} ({summary.get('provider_source', 'default')})")
+    console.print(f"  Model:              {summary['model']} ({summary['model_source']})")
     if summary['provider'] == "ollama":
-        console.print(f"  [bold]Ollama Host:[/bold]        {summary['ollama_host']}")
+        console.print(f"  Ollama Host:        {summary['ollama_host']}")
     else:
         provider_title = summary['provider'].capitalize()
-        console.print(f"  [bold]{provider_title} API Key:[/bold]    {summary['api_key_masked']} [dim]({summary['api_key_source']})[/dim]")
-    console.print(f"  [bold]Config File:[/bold]        {summary['config_file']}")
-    console.print(f"  [bold]Config File Status:[/bold] {'Present' if summary['config_exists'] else 'Not created (using defaults)'}\n")
+        console.print(f"  {provider_title} API Key:    {summary['api_key_masked']} ({summary['api_key_source']})")
+    console.print(f"  Config File:        {summary['config_file']}")
+    console.print(f"  Config File Status: {'Present' if summary['config_exists'] else 'Not created (using defaults)'}\n")
 
 
 def prompt_settings_menu(provider: str = "groq") -> str:
@@ -303,7 +290,7 @@ def prompt_provider_selection(current_provider: str = "groq") -> str:
 def prompt_api_key(provider: str = "groq") -> str:
     provider_title = provider.capitalize()
     key = Prompt.ask(
-        f"[bold]Enter {provider_title} API Key[/bold]",
+        f"Enter {provider_title} API Key",
         password=True,
         console=console,
     ).strip()
@@ -320,7 +307,7 @@ def prompt_model(current_model: str, provider: str = "groq") -> str:
         except Exception:
             pass
     model = Prompt.ask(
-        f"[bold]Enter {provider_title} Model[/bold]",
+        f"Enter {provider_title} Model",
         default=current_model,
         console=console,
     ).strip()
@@ -336,7 +323,7 @@ def prompt_ollama_host(current_host: str = "http://localhost:11434") -> str:
         except Exception:
             pass
     host = Prompt.ask(
-        "[bold]Enter Ollama Host[/bold]",
+        "Enter Ollama Host",
         default=current_host,
         console=console,
     ).strip()
@@ -345,7 +332,7 @@ def prompt_ollama_host(current_host: str = "http://localhost:11434") -> str:
 
 def prompt_confirm_reset() -> bool:
     return Confirm.ask(
-        "[bold yellow]Are you sure you want to reset all user configuration?[/bold yellow]",
+        "Are you sure you want to reset all user configuration?",
         default=False,
         console=console,
     )
@@ -354,7 +341,7 @@ def prompt_confirm_reset() -> bool:
 def prompt_confirm_push() -> bool:
     try:
         return Confirm.ask(
-            "\n[bold]Push this commit to the remote?[/bold]",
+            "\nPush this commit to the remote?",
             default=False,
             console=console,
         )
@@ -363,7 +350,7 @@ def prompt_confirm_push() -> bool:
 
 
 def show_push_success(remote: str, branch: str) -> None:
-    console.print(f"[bold green]✓[/bold green] Pushed to {remote}/{branch}\n")
+    console.print(f"Pushed to {remote}/{branch}.\n")
 
 
 def show_push_skipped() -> None:
@@ -382,7 +369,7 @@ def show_no_default_remote() -> None:
 
 
 def show_push_error(error_message: str) -> None:
-    error_console.print("\n[bold red]✗[/bold red] Push failed\n")
+    error_console.print("\nPush failed:\n")
     error_console.print(f"  {error_message}\n")
     console.print("Your commit was created locally and was not lost.\n")
 
@@ -390,36 +377,23 @@ def show_push_error(error_message: str) -> None:
 def display_review_result(result: Any) -> None:
     from comit.review.models import ReviewSeverity
 
-    console.print()
-    console.print("[bold]Comit Change Review[/bold]")
-    console.print()
-
-    files_count = result.files_checked
-    files_label = f"{files_count} file{'s' if files_count != 1 else ''} changed"
-    console.print(f"  {files_label}")
-    console.print(f"  {result.diff_stat.insertions} additions")
-    console.print(f"  {result.diff_stat.deletions} deletions")
-    console.print()
-
     if not result.has_findings:
-        console.print("[bold green]No issues detected.[/bold green]\n")
+        console.print("No issues detected.\n")
         return
 
-    console.print("[bold]Findings:[/bold]\n")
+    console.print("Review findings:\n")
 
     for finding in result.findings:
         if finding.severity == ReviewSeverity.HIGH:
-            sev_tag = "[bold red]HIGH[/bold red]"
+            sev_tag = "HIGH"
         elif finding.severity == ReviewSeverity.WARNING:
-            sev_tag = "[bold yellow]WARNING[/bold yellow]"
+            sev_tag = "WARNING"
         else:
-            sev_tag = "[bold cyan]INFO[/bold cyan]"
+            sev_tag = "INFO"
 
         console.print(f"{sev_tag}")
         console.print(f"{finding.message}")
-        console.print(f"[cyan]{finding.file_path}[/cyan]")
+        console.print(f"{finding.file_path}")
         if finding.details:
-            console.print(f"  [dim]{finding.details}[/dim]")
+            console.print(f"  {finding.details}")
         console.print()
-
-    console.print("[bold]Review complete.[/bold]\n")

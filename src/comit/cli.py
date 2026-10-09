@@ -84,7 +84,7 @@ app.add_typer(settings_app, name="settings")
 
 def version_callback(value: bool):
     if value:
-        console.print(f"Comit version [bold cyan]{__version__}[/bold cyan]")
+        console.print(f"Comit version {__version__}")
         raise typer.Exit()
 
 
@@ -138,8 +138,7 @@ def _perform_push(explicit_push: bool) -> None:
             return
 
     try:
-        with console.status(f"[cyan]Pushing to {remote}/{branch}...[/cyan]", spinner="dots"):
-            success, output = push_commit(remote, branch)
+        success, output = push_commit(remote, branch)
         if success:
             show_push_success(remote, branch)
         else:
@@ -173,26 +172,20 @@ def commit_command(
         raise typer.Exit(code=1)
 
     try:
-        with console.status("[cyan]Analyzing staged changes...[/cyan]", spinner="dots"):
-            diff = get_staged_diff()
-
+        diff = get_staged_diff()
         if not diff:
             show_no_staged_changes()
             raise typer.Exit(code=1)
-
-        show_step_success("Staged changes analyzed")
     except GitError as e:
         show_error(str(e))
         raise typer.Exit(code=1)
 
     try:
-        with console.status("[cyan]Analyzing commit history...[/cyan]", spinner="dots"):
-            recent_commits = get_recent_commits(count=15)
-            repo_name = get_repository_name()
-            branch = get_current_branch() or "HEAD"
-            changed_files = get_staged_changed_files()
-            diff_stat = get_diff_stat()
-        show_step_success("Commit history analyzed")
+        recent_commits = get_recent_commits(count=15)
+        repo_name = get_repository_name()
+        branch = get_current_branch() or "HEAD"
+        changed_files = get_staged_changed_files()
+        diff_stat = get_diff_stat()
     except GitError as e:
         show_error(str(e))
         raise typer.Exit(code=1)
@@ -214,15 +207,14 @@ def commit_command(
             show_cancelled()
             return
     else:
-        show_step_success("No issues detected")
+        console.print("No issues detected.\n")
 
     current_message = ""
     seen_messages: List[str] = []
 
     try:
-        with console.status("[cyan]Generating commit message...[/cyan]", spinner="dots"):
-            current_message = generate_commit_message(context=context)
-            seen_messages.append(current_message)
+        current_message = generate_commit_message(context=context)
+        seen_messages.append(current_message)
     except ComitAIError as e:
         show_error(str(e))
         raise typer.Exit(code=1)
@@ -270,12 +262,11 @@ def commit_command(
 
         elif action in ("regenerate", "r"):
             try:
-                with console.status("[cyan]Generating alternative commit message...[/cyan]", spinner="dots"):
-                    current_message = generate_commit_message(
-                        context=context,
-                        avoid_messages=seen_messages,
-                    )
-                    seen_messages.append(current_message)
+                current_message = generate_commit_message(
+                    context=context,
+                    avoid_messages=seen_messages,
+                )
+                seen_messages.append(current_message)
             except ComitAIError as e:
                 show_error(str(e))
             except Exception as e:
@@ -307,7 +298,6 @@ def review_command():
 
     result = review_changes(context)
     display_review_result(result)
-
 
 
 def _run_interactive_settings() -> None:
