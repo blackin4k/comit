@@ -31,21 +31,23 @@ Comit is a lightweight developer CLI for Git. It analyzes your staged changes an
 - Python 3.11+
 - Git
 
-### Install Comit
+### Installing from Source (Current Development)
 
-Install Comit using pip:
+Clone the repository and install Comit into your environment:
 
 ```bash
+git clone https://github.com/blackin4k/comit.git
+cd comit
 pip install .
 ```
 
-For editable local development:
+For editable development mode:
 
 ```bash
 pip install -e .
 ```
 
-To install with additional provider SDKs:
+To install with additional provider SDKs and testing dependencies:
 
 ```bash
 # Google Gemini SDK
@@ -59,6 +61,20 @@ pip install -e ".[ollama]"
 
 # All providers and testing tools
 pip install -e ".[all,test]"
+```
+
+### Installing from PyPI (After Release)
+
+Once published to PyPI, Comit can be installed directly:
+
+```bash
+pip install comit
+```
+
+With optional provider extras:
+
+```bash
+pip install "comit[all]"
 ```
 
 ### Windows PATH Note
@@ -387,13 +403,77 @@ If no Git remote is configured, Comit reports that no remote exists and leaves y
 
 ---
 
-## Testing
+## Testing & Quality Assurance
 
-Run the test suite with pytest:
+### Running Tests
+
+Run the complete test suite:
 
 ```bash
 pytest
 ```
+
+Run tests with verbose output:
+
+```bash
+pytest -v
+```
+
+### Building and Verifying Distributions
+
+Build the source distribution and wheel:
+
+```bash
+python -m build
+```
+
+Validate package metadata with twine:
+
+```bash
+twine check --strict dist/*
+```
+
+---
+
+## Continuous Integration & Release
+
+### Continuous Integration (CI)
+
+The GitHub Actions CI workflow runs automatically on all pushes and pull requests to `main`. It:
+- Tests on both `ubuntu-latest` and `windows-latest`.
+- Validates against supported Python versions (3.11, 3.12, 3.13).
+- Runs the complete automated test suite.
+- Builds source distributions (`.tar.gz`) and binary wheels (`.whl`).
+- Validates distribution metadata with `twine check --strict`.
+
+### Release Process & PyPI Publishing
+
+Releases use PyPI Trusted Publishing via OpenID Connect (OIDC). No long-lived API tokens or credentials are stored in repository secrets.
+
+#### Release Workflow
+
+1. Update the version in `pyproject.toml` and `src/comit/__init__.py`.
+2. Push a version tag matching `v*` (for example, `v0.2.0`):
+   ```bash
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+3. The release workflow automatically:
+   - Builds the wheel and source distribution.
+   - Validates package metadata.
+   - Publishes verified artifacts to PyPI via OIDC.
+
+#### PyPI Trusted Publisher Configuration
+
+To configure PyPI Trusted Publishing for this repository:
+1. Navigate to your PyPI account settings and go to **Publishing**.
+2. Add a new **GitHub Publisher**:
+   - **PyPI Project Name**: `comit`
+   - **Owner**: `blackin4k`
+   - **Repository Name**: `comit`
+   - **Workflow name**: `release.yml`
+   - **Environment name**: `pypi`
+3. In GitHub repository settings, create the `pypi` environment under **Settings > Environments**.
 
 ---
 

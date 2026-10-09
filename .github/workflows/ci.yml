@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies and package
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[all,test]"
+          pip install build twine
+
+      - name: Run test suite
+        run: |
+          pytest -v
+
+      - name: Build wheel and source distribution
+        run: |
+          python -m build
+
+      - name: Validate distribution metadata
+        run: |
+          python -c "import glob, subprocess, sys; files = glob.glob('dist/*'); sys.exit('No distribution files found in dist/') if not files else sys.exit(subprocess.call([sys.executable, '-m', 'twine', 'check', '--strict'] + files))"

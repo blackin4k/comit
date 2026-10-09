@@ -4,7 +4,6 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from dotenv import dotenv_values
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -13,116 +12,159 @@ if hasattr(sys.stderr, "reconfigure"):
 
 COMIT_ROOT = Path(__file__).parent.parent.resolve()
 
+
 def test_clean_installation():
     temp_dir = Path(tempfile.mkdtemp(prefix="comit_clean_env_"))
-    print(f"Clean Test Base Directory: {temp_dir}")
     try:
         clean_venv = temp_dir / "test_venv"
         clean_repo = temp_dir / "external_project"
 
         # 1. Create a clean virtual environment
-        print("\n1. Creating clean virtual environment...")
         subprocess.run([sys.executable, "-m", "venv", str(clean_venv)], check=True)
-        
-        venv_pip = clean_venv / "Scripts" / "pip.exe"
-        venv_scripts = clean_venv / "Scripts"
 
-        # 2. Install comit package into clean environment
-        print("2. Installing comit package into clean virtual environment...")
-        res = subprocess.run([str(venv_pip), "install", "-e", str(COMIT_ROOT)], capture_output=True, text=True, encoding="utf-8", errors="replace")
-        assert res.returncode == 0
-        print("   Installation succeeded.")
+        if sys.platform == "win32":
+            venv_bin = clean_venv / "Scripts"
+            pip_exe = venv_bin / "pip.exe"
+            python_exe = venv_bin / "python.exe"
+        else:
+            venv_bin = clean_venv / "bin"
+            pip_exe = venv_bin / "pip"
+            python_exe = venv_bin / "python"
 
-        # Set up clean environment PATH so git discovers git-ai
+        assert pip_exe.exists(), f"pip executable not found at {pip_exe}"
+        assert python_exe.exists(), f"python executable not found at {python_exe}"
+
+        # 2. Clean non-editable installation of comit
+        res = subprocess.run(
+            [str(pip_exe), "install", str(COMIT_ROOT)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        assert res.returncode == 0, f"pip install failed:\n{res.stdout}\n{res.stderr}"
+
+        # Configure PATH to include clean venv binaries
         env = os.environ.copy()
-        env["PATH"] = f"{venv_scripts};{env.get('PATH', '')}"
+        env["PATH"] = f"{venv_bin}{os.pathsep}{env.get('PATH', '')}"
         env["PYTHONIOENCODING"] = "utf-8"
+        # Ensure external env does not leak API keys by default for the missing-key test
+        env.pop("GROQ_API_KEY", None)
+        env.pop("OPENAI_API_KEY", None)
+        env.pop("GEMINI_API_KEY", None)
 
-        # Pass GROQ_API_KEY from .env
-        env_vals = dotenv_values(COMIT_ROOT / ".env")
-        for k, v in env_vals.items():
-            if "groq" in k.lower() and v:
-                env["GROQ_API_KEY"] = v.strip()
-                break
-
-        # 3. Test git-ai --version
-        print("\n3. Testing git-ai --version...")
+        # 3. Test git-ai and comit --version
         git_ai_bin = shutil.which("git-ai", path=env["PATH"])
-        assert git_ai_bin is not None
-        res = subprocess.run([git_ai_bin, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
-        print("   git-ai --version output:", res.stdout.strip())
+        comit_bin = shutil.which("comit", path=env["PATH"])
+        assert git_ai_bin is not None, "git-ai executable not found in PATH"
+        assert comit_bin is not None, "comit executable not found in PATH"
+
+        res = subprocess.run(
+            [git_ai_bin, "--version"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+        )
         assert res.returncode == 0
         assert "Comit version 0.2.0" in res.stdout
 
+        res_comit = subprocess.run(
+            [comit_bin, "--version"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+        )
+        assert res_comit.returncode == 0
+        assert "Comit version 0.2.0" in res_comit.stdout
+
         # 4. Create an external Git repository
-        print("\n4. Creating external Git repository outside Comit...")
         clean_repo.mkdir()
         subprocess.run(["git", "init"], cwd=str(clean_repo), check=True, capture_output=True)
         subprocess.run(["git", "config", "user.name", "External Dev"], cwd=str(clean_repo), check=True, capture_output=True)
         subprocess.run(["git", "config", "user.email", "external@dev.com"], cwd=str(clean_repo), check=True, capture_output=True)
 
-        # Initial commit
-        main_py = clean_repo / "main.py"
-        main_py.write_text("def main():\n    print('hello')\n", encoding="utf-8")
-        subprocess.run(["git", "add", "main.py"], cwd=str(clean_repo), check=True, capture_output=True)
-        subprocess.run(["git", "commit", "-m", "feat: initial commit"], cwd=str(clean_repo), check=True, capture_output=True)
-
         # 5. Test git ai --version from external repo
-        print("\n5. Testing git ai --version from external repository...")
-        res = subprocess.run(["git", "ai", "--version"], cwd=str(clean_repo), capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
-        print("   git ai --version output:", res.stdout.strip())
-        assert res.returncode == 0
-        assert "Comit version 0.2.0" in res.stdout
-
-        # 6. Test git ai commit -y from external repo with real Groq generation
-        print("\n6. Testing git ai commit -y from external repository with real Groq...")
-        main_py.write_text(
-            "def calculate_total(items):\n    return sum(item['price'] for item in items)\n\n"
-            "def main():\n    print('hello')\n",
-            encoding="utf-8"
-        )
-        subprocess.run(["git", "add", "main.py"], cwd=str(clean_repo), check=True, capture_output=True)
-
-        res = subprocess.run(["git", "ai", "commit", "-y"], cwd=str(clean_repo), capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
-        print("   git ai commit -y output:\n", res.stdout.strip())
-        assert res.returncode == 0
-        assert "Commit created successfully" in res.stdout
-
-        log_res = subprocess.run(["git", "log", "-1", "--pretty=format:%s"], cwd=str(clean_repo), capture_output=True, text=True, encoding="utf-8", errors="replace")
-        print(f"   Generated commit subject: {log_res.stdout.strip()}")
-
-        # 7. Test git ai commit (interactive accept)
-        print("\n7. Testing git ai commit (interactive accept) from external repository...")
-        main_py.write_text(
-            "def calculate_total(items, tax_rate=0.05):\n    subtotal = sum(item['price'] for item in items)\n    return subtotal * (1 + tax_rate)\n\n"
-            "def main():\n    print('hello')\n",
-            encoding="utf-8"
-        )
-        subprocess.run(["git", "add", "main.py"], cwd=str(clean_repo), check=True, capture_output=True)
-
         res = subprocess.run(
-            ["git", "ai", "commit"],
+            ["git", "ai", "--version"],
             cwd=str(clean_repo),
-            input="a\n",
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
-            env=env
+            env=env,
         )
-        print("   git ai commit interactive output:\n", res.stdout.strip())
         assert res.returncode == 0
-        assert "Commit created successfully" in res.stdout
+        assert "Comit version 0.2.0" in res.stdout
 
-        log_res2 = subprocess.run(["git", "log", "-1", "--pretty=format:%s"], cwd=str(clean_repo), capture_output=True, text=True, encoding="utf-8", errors="replace")
-        print(f"   Generated commit subject: {log_res2.stdout.strip()}")
+        # 6. Test git ai settings show from external repo (works offline)
+        res = subprocess.run(
+            ["git", "ai", "settings", "show"],
+            cwd=str(clean_repo),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+        )
+        assert res.returncode == 0
+        assert "AI Provider:" in res.stdout
+        assert "Comit Configuration" in res.stdout
 
-        print("\n=======================================================")
-        print(" CLEAN ENVIRONMENT INSTALLATION TEST: 100% SUCCESS ")
-        print("=======================================================")
+        # 7. Test git ai review in external repo with staged change
+        main_py = clean_repo / "main.py"
+        main_py.write_text("def main():\n    print('hello world')\n", encoding="utf-8")
+        subprocess.run(["git", "add", "main.py"], cwd=str(clean_repo), check=True, capture_output=True)
+
+        res_review = subprocess.run(
+            ["git", "ai", "review"],
+            cwd=str(clean_repo),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+        )
+        assert res_review.returncode == 0
+        assert "No issues detected." in res_review.stdout
+
+        # 8. Test clean error handling when API key is missing
+        res_no_key = subprocess.run(
+            ["git", "ai", "commit", "-y"],
+            cwd=str(clean_repo),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+        )
+        assert res_no_key.returncode == 1
+        combined_err = res_no_key.stdout + res_no_key.stderr
+        assert "Error:" in combined_err
+        assert "GROQ_API_KEY" in combined_err or "API key" in combined_err
+
+        # 9. Optional live test behind explicit opt-in environment variable
+        if os.environ.get("COMIT_RUN_LIVE_TESTS") == "1" and os.environ.get("GROQ_API_KEY"):
+            env_with_key = env.copy()
+            env_with_key["GROQ_API_KEY"] = os.environ["GROQ_API_KEY"]
+            res_live = subprocess.run(
+                ["git", "ai", "commit", "-y"],
+                cwd=str(clean_repo),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env_with_key,
+            )
+            assert res_live.returncode == 0
+            assert "Commit created successfully" in res_live.stdout
 
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
 
 if __name__ == "__main__":
     test_clean_installation()
