@@ -52,7 +52,7 @@ def test_clean_installation():
         res = subprocess.run([git_ai_bin, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
         print("   git-ai --version output:", res.stdout.strip())
         assert res.returncode == 0
-        assert "Comit version 0.1.0" in res.stdout
+        assert "Comit version 0.2.0" in res.stdout
 
         # 4. Create an external Git repository
         print("\n4. Creating external Git repository outside Comit...")
@@ -72,7 +72,7 @@ def test_clean_installation():
         res = subprocess.run(["git", "ai", "--version"], cwd=str(clean_repo), capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
         print("   git ai --version output:", res.stdout.strip())
         assert res.returncode == 0
-        assert "Comit version 0.1.0" in res.stdout
+        assert "Comit version 0.2.0" in res.stdout
 
         # 6. Test git ai commit -y from external repo with real Groq generation
         print("\n6. Testing git ai commit -y from external repository with real Groq...")
