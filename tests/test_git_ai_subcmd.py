@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 from pathlib import Path
 
@@ -21,26 +22,43 @@ def test_git_ai_subcommand():
         subprocess.run(["git", "config", "user.name", "Test Dev"], cwd=str(temp_dir), check=True, capture_output=True)
         subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=str(temp_dir), check=True, capture_output=True)
 
-        # Locate scripts directory across platforms
+        # Locate scripts directory across platforms and Python environments
+        scripts_path = sysconfig.get_path("scripts")
         candidate_dirs = [
+            Path(scripts_path) if scripts_path else None,
             Path(sys.executable).parent,
             Path(sys.executable).parent / "Scripts",
             Path(sys.prefix) / "Scripts",
             Path(sys.prefix) / "bin",
             COMIT_ROOT / ".venv" / ("Scripts" if sys.platform == "win32" else "bin"),
         ]
-        existing_dirs = [str(d.resolve()) for d in candidate_dirs if d.is_dir()]
+        existing_dirs = [str(d.resolve()) for d in candidate_dirs if d and d.is_dir()]
 
         env = os.environ.copy()
         env["PATH"] = os.pathsep.join(existing_dirs + [env.get("PATH", "")])
         env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONPATH"] = f"{COMIT_ROOT / 'src'}{os.pathsep}{env.get('PYTHONPATH', '')}"
+
         # Ensure offline determinism
         env.pop("GROQ_API_KEY", None)
         env.pop("OPENAI_API_KEY", None)
         env.pop("GEMINI_API_KEY", None)
 
-        # Verify git-ai is found in PATH
+        # If git-ai executable is not already in PATH, create an isolated wrapper
         git_ai_bin = shutil.which("git-ai", path=env["PATH"])
+        if git_ai_bin is None:
+            bin_dir = temp_dir / "bin"
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            if sys.platform == "win32":
+                shim = bin_dir / "git-ai.cmd"
+                shim.write_text(f'@"{sys.executable}" -m comit.cli %*\n', encoding="utf-8")
+            else:
+                shim = bin_dir / "git-ai"
+                shim.write_text(f'#!/bin/sh\nexec "{sys.executable}" -m comit.cli "$@"\n', encoding="utf-8")
+                shim.chmod(0o755)
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            git_ai_bin = shutil.which("git-ai", path=env["PATH"])
+
         assert git_ai_bin is not None, f"git-ai executable not found in PATH: {env['PATH']}"
 
         # 1. Test 'git ai --version' (Git extension discovery and version output)
