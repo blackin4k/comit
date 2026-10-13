@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "comit"
+name = "comit-cli"
 version = "0.2.0"
 description = "An AI-powered Git commit assistant that understands your repository's commit style"
 readme = "README.md"

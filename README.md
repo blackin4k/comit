@@ -68,14 +68,16 @@ pip install -e ".[all,test]"
 Once published to PyPI, Comit can be installed directly:
 
 ```bash
-pip install comit
+pip install comit-cli
 ```
 
 With optional provider extras:
 
 ```bash
-pip install "comit[all]"
+pip install "comit-cli[all]"
 ```
+
+Note: The PyPI package distribution name is `comit-cli`, while the Python import package remains `comit`, providing both the `comit` and `git ai` CLI entry points.
 
 ### Windows PATH Note
 
@@ -468,7 +470,7 @@ Releases use PyPI Trusted Publishing via OpenID Connect (OIDC). No long-lived AP
 To configure PyPI Trusted Publishing for this repository:
 1. Navigate to your PyPI account settings and go to **Publishing**.
 2. Add a new **GitHub Publisher**:
-   - **PyPI Project Name**: `comit`
+   - **PyPI Project Name**: `comit-cli`
    - **Owner**: `blackin4k`
    - **Repository Name**: `comit`
    - **Workflow name**: `release.yml`

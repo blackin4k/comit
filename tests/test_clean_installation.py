@@ -34,7 +34,7 @@ def test_clean_installation():
         assert pip_exe.exists(), f"pip executable not found at {pip_exe}"
         assert python_exe.exists(), f"python executable not found at {python_exe}"
 
-        # 2. Clean non-editable installation of comit
+        # 2. Clean non-editable installation of comit-cli
         res = subprocess.run(
             [str(pip_exe), "install", str(COMIT_ROOT)],
             capture_output=True,
@@ -43,6 +43,27 @@ def test_clean_installation():
             errors="replace",
         )
         assert res.returncode == 0, f"pip install failed:\n{res.stdout}\n{res.stderr}"
+
+        # Verify distribution name is comit-cli and import package is comit
+        res_show = subprocess.run(
+            [str(pip_exe), "show", "comit-cli"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        assert res_show.returncode == 0
+        assert "Name: comit-cli" in res_show.stdout
+
+        res_import = subprocess.run(
+            [str(python_exe), "-c", "import comit; print(comit.__version__)"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        assert res_import.returncode == 0
+        assert "0.2.0" in res_import.stdout
 
         # Configure PATH to include clean venv binaries
         env = os.environ.copy()
