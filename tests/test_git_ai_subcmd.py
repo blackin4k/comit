@@ -72,7 +72,7 @@ def test_git_ai_subcommand():
             env=env,
         )
         assert res_version.returncode == 0
-        assert "Comit version 0.2.0" in res_version.stdout
+        assert "Comit version 1.0.0" in res_version.stdout
 
         # 2. Test 'git ai settings show' (Subcommand forwarding)
         res_settings = subprocess.run(
