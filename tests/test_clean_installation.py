@@ -63,7 +63,7 @@ def test_clean_installation():
             errors="replace",
         )
         assert res_import.returncode == 0
-        assert "0.2.0" in res_import.stdout
+        assert "1.0.0" in res_import.stdout
 
         # Configure PATH to include clean venv binaries
         env = os.environ.copy()
