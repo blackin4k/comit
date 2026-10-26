@@ -89,7 +89,7 @@ def test_clean_installation():
             env=env,
         )
         assert res.returncode == 0
-        assert "Comit version 0.2.0" in res.stdout
+        assert "Comit version 1.0.0" in res.stdout
 
         res_comit = subprocess.run(
             [comit_bin, "--version"],
@@ -100,7 +100,7 @@ def test_clean_installation():
             env=env,
         )
         assert res_comit.returncode == 0
-        assert "Comit version 0.2.0" in res_comit.stdout
+        assert "Comit version 1.0.0" in res_comit.stdout
 
         # 4. Create an external Git repository
         clean_repo.mkdir()
@@ -119,7 +119,7 @@ def test_clean_installation():
             env=env,
         )
         assert res.returncode == 0
-        assert "Comit version 0.2.0" in res.stdout
+        assert "Comit version 1.0.0" in res.stdout
 
         # 6. Test git ai settings show from external repo (works offline)
         res = subprocess.run(
