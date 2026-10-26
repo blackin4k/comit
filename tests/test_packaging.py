@@ -1,3 +1,4 @@
+
 import subprocess
 import sys
 import zipfile
@@ -8,10 +9,10 @@ COMIT_ROOT = Path(__file__).parent.parent.resolve()
 
 
 def test_version_consistency():
-    assert comit.__version__ == "0.2.0"
+    assert comit.__version__ == "1.0.0"
 
     pyproject_text = (COMIT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert 'version = "0.2.0"' in pyproject_text
+    assert 'version = "1.0.0"' in pyproject_text
 
 
 def test_package_metadata_and_name():
@@ -40,7 +41,6 @@ def test_build_and_twine_check(tmp_path):
     dist_dir = tmp_path / "dist"
     dist_dir.mkdir()
 
-    # Build sdist and wheel into tmp_path/dist
     res_build = subprocess.run(
         [sys.executable, "-m", "build", "--outdir", str(dist_dir), str(COMIT_ROOT)],
         capture_output=True,
@@ -54,17 +54,15 @@ def test_build_and_twine_check(tmp_path):
     sdist_files = list(dist_dir.glob("*.tar.gz"))
     assert len(wheel_files) == 1, "Expected exactly 1 wheel file"
     assert len(sdist_files) == 1, "Expected exactly 1 sdist file"
-    assert "comit_cli-0.2.0" in wheel_files[0].name
-    assert "comit_cli-0.2.0" in sdist_files[0].name or "comit-cli-0.2.0" in sdist_files[0].name
+    assert "comit_cli-1.0.0" in wheel_files[0].name
+    assert "comit_cli-1.0.0" in sdist_files[0].name or "comit-cli-1.0.0" in sdist_files[0].name
 
-    # Check embedded Core Metadata Name in built wheel
     with zipfile.ZipFile(wheel_files[0]) as zf:
         metadata_names = [n for n in zf.namelist() if n.endswith("METADATA")]
         assert len(metadata_names) == 1
         metadata_content = zf.read(metadata_names[0]).decode("utf-8")
         assert "Name: comit-cli" in metadata_content
 
-    # Check distribution metadata with twine
     res_twine = subprocess.run(
         [sys.executable, "-m", "twine", "check", "--strict", str(wheel_files[0]), str(sdist_files[0])],
         capture_output=True,
